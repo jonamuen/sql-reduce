@@ -1,8 +1,9 @@
 .DS_Store
+.idea
 *.aux
 *.bbl
 *.blg
 *.log
 *.pdf
 *.synctex.gz
-
+SQLReduce/venv
