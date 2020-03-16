@@ -7,3 +7,5 @@
 *.pdf
 *.synctex.gz
 SQLReduce/venv
+SQLReduce/gen
+*__pycache__
