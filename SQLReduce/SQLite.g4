@@ -37,7 +37,7 @@ parse
 error
  : UNEXPECTED_CHAR 
    { 
-     throw new RuntimeException("UNEXPECTED_CHAR=" + $UNEXPECTED_CHAR.text); 
+raise Exception("UNEXPECTED_CHAR=" + $UNEXPECTED_CHAR.text);
    }
  ;
 
