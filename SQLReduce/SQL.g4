@@ -1,7 +1,7 @@
-grammar sql;
+grammar SQL;
 
 sql_statement_list
-    : ';'* (sql_stmt (';')+)+
+    : ';'* (sql_stmt (';')+)+ EOF
 ;
 
 sql_stmt
