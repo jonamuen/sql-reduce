@@ -21,16 +21,6 @@ def expand_grammar(filename: str):
                     out_file.write(line)
 
 
-expand_grammar('sql.lark')
-
-l = Lark("""
-%import .sqlexpanded (sql_stmt_list)
-%import common.WS
-%ignore WS
-
-""", start="sql_stmt_list", debug=True, parser='lalr')
-
-
 class PrettyPrinter(Transformer):
     """
     Computes the string representation of an SQL parse-tree
@@ -68,14 +58,20 @@ class MyVerifier(AbstractVerifier):
         pass
 
 
-e = EmptyTransformation()
-prm = PrefixRemover(visit_tokens=True)
-srm = StatementRemover(removeIndices=[1, 2])
-p = PrettyPrinter(visit_tokens=True)
-stmt = "CREATE TABLE t (id INT); SELECT ';' FROM t; jsdfe''';';"
-tree = l.parse(stmt)
-tree = prm.transform(tree)
-print(tree.pretty())
-print(p.transform(tree))
-print(p.transform(e.transform(tree)))
-print(srm.transform(tree).pretty())
+if __name__ == '__main__':
+    expand_grammar('sql.lark')
+
+    with open('sqlexpanded.lark') as f:
+        l = Lark(f, start="sql_stmt_list", debug=True, parser='lalr')
+
+    e = EmptyTransformation()
+    prm = PrefixRemover(visit_tokens=True)
+    srm = StatementRemover(removeIndices=[1, 2])
+    p = PrettyPrinter(visit_tokens=True)
+    stmt = "CREATE TABLE t (id INT); SELECT ';' FROM t; jsdfe''';';"
+    tree = l.parse(stmt)
+    tree = prm.transform(tree)
+    print(tree.pretty())
+    print(p.transform(tree))
+    print(p.transform(e.transform(tree)))
+    print(srm.transform(tree).pretty())

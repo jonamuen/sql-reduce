@@ -37,3 +37,4 @@ VALUE.2: /'([^']|'')*'/
 _SEMI: ";"
 
 %import common.WS
+%ignore WS
