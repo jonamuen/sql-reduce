@@ -1,11 +1,9 @@
 import sys
 from antlr4 import *
-from SQLiteLexer import SQLiteLexer
-from SQLiteVisitor import SQLiteVisitor
 
-from SQLLexer import SQLLexer
-from SQLParser import SQLParser
-from SQLVisitor import SQLVisitor
+from parser.SQLLexer import SQLLexer
+from parser.SQLParser import SQLParser
+from parser.SQLVisitor import SQLVisitor
 
 from astnodebase import RuleNode, SqlStmtListNode, SqlStmtNode, TerminalNode
 
