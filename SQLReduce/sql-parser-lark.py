@@ -21,14 +21,14 @@ def expand_grammar(filename: str):
                     out_file.write(line)
 
 
-expand_grammar('mysql.lark')
+expand_grammar('sql.lark')
 
 l = Lark("""
-%import .mysqlexpanded (sql_stmt_list)
+%import .sqlexpanded (sql_stmt_list)
 %import common.WS
 %ignore WS
 
-""", start="sql_stmt_list", debug=True)
+""", start="sql_stmt_list", debug=True, parser='lalr')
 
 
 class PrettyPrinter(Transformer):
@@ -70,7 +70,8 @@ class MyVerifier(AbstractVerifier):
 
 e = EmptyTransformation()
 p = PrettyPrinter(visit_tokens=True)
-stmt = "CREATE TABLE t (id INTQ); SELECT * FROM t;"
+stmt = "CREATE TABLE t (id INT); SELECT ';' FROM t; jsdfe''';';"
 tree = l.parse(stmt)
+print(tree.pretty())
 print(p.transform(tree))
 print(p.transform(e.transform(tree)))
