@@ -8,4 +8,5 @@
 *.synctex.gz
 SQLReduce/venv
 SQLReduce/gen
+SQLReduce/parser
 *__pycache__
