@@ -24,6 +24,9 @@ class ParserTest(unittest.TestCase):
         # missing ; at end
         self.assertRaises(ParseError, lambda: self.parser.parse("SELECT c0 FROM t0"))
 
+    def test_select_with_table_ref(self):
+        self.parser.parse("SELECT t0.c0 FROM t0;")
+
     def test_semi_and_quote_in_str(self):
         tree = self.parser.parse("SELECT ''';' FROM t0;")
         self.assertEqual(1, len(tree.children))
@@ -33,6 +36,18 @@ class ParserTest(unittest.TestCase):
         tree = self.parser.parse("SLCT ''';' FROM t0;")
         self.assertEqual(1, len(tree.children))
         self.assertEqual("unexpected_stmt", tree.children[0].children[0].data)
+
+    def test_limit(self):
+        tree = self.parser.parse("SELECT c0 FROM t0 LIMIT 10;")
+
+    def test_join(self):
+        tree = self.parser.parse("SELECT c0, c1 FROM t0 JOIN t1;")
+
+    def test_join_with_condition(self):
+        tree = self.parser.parse("SELECT c0, c1 FROM t0 JOIN t1 ON c0=c1;")
+
+    def test_where(self):
+        tree = self.parser.parse("SELECT c0 FROM t0 WHERE c0 = ';';")
 
     def test_multiple_stmts(self):
         tree = self.parser.parse("CREATE TABLE t0 (id INT); SELECT id FROM t0;")

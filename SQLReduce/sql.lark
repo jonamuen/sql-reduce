@@ -4,7 +4,7 @@ sql_stmt: select_stmt
         | create_table_stmt
         | unexpected_stmt
 
-select_stmt.1: K_SELECT name_or_value ("," name_or_value)* K_FROM NAME
+select_stmt.1: K_SELECT expr ("," expr)* from_clause? where_clause? limit_clause?
 
 create_table_stmt.1: K_CREATE K_TABLE NAME "(" column_def_list ")"
 
@@ -13,7 +13,26 @@ unexpected_stmt.0: (ERROR | VALUE) +
 //*? match non-greedily
 ERROR.0: /(.+?)/
 
+from_clause: K_FROM NAME join_clause*
+
 column_def_list: NAME sql_type? ("," NAME sql_type?)*
+
+join_clause: K_JOIN NAME (K_ON expr)?
+
+where_clause: K_WHERE expr
+
+limit_clause: K_LIMIT POS_INT
+
+// TODO: expand expr
+// TODO: fix shift/reduce conflicts
+expr: expr operator expr
+    | "("expr")"
+    | column_name
+    | VALUE
+
+table_name: NAME
+column_name: table_name "." NAME
+           | NAME
 
 // TODO: check what names are allowed and how values are specified
 name_or_value: NAME
@@ -21,18 +40,33 @@ name_or_value: NAME
 
 sql_type: NAME ("("VALUE ")")?
 
+// TODO: add more operators
+operator: PLUS | MINUS | STAR | SLASH | EQUAL | GREATER | LESS
+
 K_SELECT: "SELECT"
 K_UPDATE: "UPDATE"
 K_CREATE: "CREATE"
 K_TABLE: "TABLE"
 K_FROM: "FROM"
+K_ON: "ON"
+K_JOIN: "JOIN"
+K_WHERE: "WHERE"
+K_LIMIT: "LIMIT"
 
-EQUAL : "="
+PLUS: "+"
+MINUS: "-"
+STAR: "*"
+SLASH: "/"
+EQUAL: "="
+GREATER: ">"
+LESS: "<"
 
 NAME.1: /[a-zA-Z_]/ /[a-zA-Z0-9]*/
 
 VALUE.2: /'([^']|'')*'/
-     | ("+"|"-")? /[0-9]+/ /(\.[0-9]*)/?
+       | ("+"|"-")? /[0-9]+/ /(\.[0-9]*)/?
+
+POS_INT: /[0-9]+/
 
 _SEMI: ";"
 
