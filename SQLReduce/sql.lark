@@ -1,4 +1,4 @@
-sql_stmt_list: ";"* (sql_stmt (SEMI)+)+
+sql_stmt_list: ";"* (sql_stmt _SEMI+)+
 
 sql_stmt: select_stmt
         | create_table_stmt
@@ -34,6 +34,6 @@ NAME.1: /[a-zA-Z_]/ /[a-zA-Z0-9]*/
 VALUE.2: /'([^']|'')*'/
      | ("+"|"-")? /[0-9]+/ /(\.[0-9]*)/?
 
-SEMI: ";"
+_SEMI: ";"
 
 %import common.WS
