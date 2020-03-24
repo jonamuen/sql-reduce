@@ -9,4 +9,5 @@
 SQLReduce/venv
 SQLReduce/gen
 SQLReduce/parser
+*expanded.lark
 *__pycache__

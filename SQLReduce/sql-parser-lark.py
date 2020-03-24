@@ -3,8 +3,22 @@ from transformation import EmptyTransformation
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
+def expand_grammar(filename: str):
+    name, extension = filename.split('.')
+    exp_filename = name + 'expanded.' + extension
+    with open(filename) as in_file:
+        with open(exp_filename, 'w') as out_file:
+            for line in in_file:
+                if len(line) >= 2 and line[-2] == '\\':
+                    out_file.write(line[:-2] + ' ')
+                else:
+                    out_file.write(line)
+
+
+expand_grammar('mysql.lark')
+
 l = Lark("""
-%import .mysql (sql_stmt_list)
+%import .mysqlexpanded (sql_stmt_list)
 %import common.WS
 %ignore WS
 
