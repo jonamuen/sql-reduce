@@ -7,7 +7,7 @@ from SQLLexer import SQLLexer
 from SQLParser import SQLParser
 from SQLVisitor import SQLVisitor
 
-from ast import RuleNode, TerminalNode
+from astnodebase import RuleNode, SqlStmtListNode, SqlStmtNode, TerminalNode
 
 class PrettyPrinter(SQLVisitor):
     def visitTerminal(self, node):
@@ -58,9 +58,6 @@ class EmptyTransform(SQLVisitor):
 
 
 class AstConstructor(SQLVisitor):
-    def visit(self, tree):
-        return self.visitChildren(tree)
-
     def aggregateResult(self, aggregate, nextResult):
         print(f'aggregating: {str(aggregate)}, {str(nextResult)}')
         if aggregate is None:
@@ -72,6 +69,11 @@ class AstConstructor(SQLVisitor):
             aggregate.children.append(nextResult)
             return aggregate
 
+    def visitSql_statement_list(self, ctx:SQLParser.Sql_statement_listContext):
+        return SqlStmtListNode(self.visitChildren(ctx))
+
+    def visitSql_stmt(self, ctx:SQLParser.Sql_stmtContext):
+        return SqlStmtNode(self.visitChildren(ctx))
 
     def visitTerminal(self, node):
         print(f'Visiting terminal: {str(node)}')
