@@ -4,6 +4,12 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 
 def expand_grammar(filename: str):
+    """
+    Replace newlines preceded by \ with whitespace.
+    This allows linebreaks inside grammar definitions.
+    :param filename: path to file
+    :return: None
+    """
     name, extension = filename.split('.')
     exp_filename = name + 'expanded.' + extension
     with open(filename) as in_file:
