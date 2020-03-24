@@ -1,5 +1,5 @@
 from lark import *
-from transformation import EmptyTransformation
+from transformation import EmptyTransformation, PrefixRemover, StatementRemover
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -69,9 +69,13 @@ class MyVerifier(AbstractVerifier):
 
 
 e = EmptyTransformation()
+prm = PrefixRemover(visit_tokens=True)
+srm = StatementRemover(removeIndices=[1, 2])
 p = PrettyPrinter(visit_tokens=True)
 stmt = "CREATE TABLE t (id INT); SELECT ';' FROM t; jsdfe''';';"
 tree = l.parse(stmt)
+tree = prm.transform(tree)
 print(tree.pretty())
 print(p.transform(tree))
 print(p.transform(e.transform(tree)))
+print(srm.transform(tree).pretty())
