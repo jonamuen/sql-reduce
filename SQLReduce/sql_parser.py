@@ -46,14 +46,14 @@ if __name__ == '__main__':
     expand_grammar('sql.lark')
 
     with open('sqlexpanded.lark') as f:
-        l = Lark(f, start="sql_stmt_list", debug=True, parser='lalr')
+        parser = Lark(f, start="sql_stmt_list", debug=True, parser='lalr')
 
     e = EmptyTransformation()
     prm = PrefixRemover(visit_tokens=True)
     srm = StatementRemover(remove_indices=[1, 2])
     p = PrettyPrinter(visit_tokens=True)
     stmt = "CREATE TABLE t (id INT); SELECT ';' FROM t; jsdfe''';'; DELETE FROM t0 WHERE id=0;"
-    tree = l.parse(stmt)
+    tree = parser.parse(stmt)
     tree = prm.transform(tree)
     print(tree.pretty())
     print(p.transform(tree))
