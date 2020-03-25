@@ -3,7 +3,7 @@ from itertools import combinations
 from lark import Lark, Tree, Token
 from lark import ParseError
 from sql_parser import expand_grammar
-from tree_tools import partial_equivalence
+from utils import partial_equivalence
 from transformation import StatementRemover, PrettyPrinter
 
 

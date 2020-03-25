@@ -1,25 +1,8 @@
 from lark import *
 from transformation import EmptyTransformation, PrefixRemover, StatementRemover, PrettyPrinter
+from utils import expand_grammar
 import logging
 logging.basicConfig(level=logging.DEBUG)
-
-
-def expand_grammar(filename: str):
-    """
-    Replace newlines preceded by a backslash with whitespace.
-    This allows linebreaks inside grammar definitions.
-    :param filename: path to file
-    :return: None
-    """
-    name, extension = filename.split('.')
-    exp_filename = name + 'expanded.' + extension
-    with open(filename) as in_file:
-        with open(exp_filename, 'w') as out_file:
-            for line in in_file:
-                if len(line) >= 2 and line[-2] == '\\':
-                    out_file.write(line[:-2] + ' ')
-                else:
-                    out_file.write(line)
 
 
 class AbstractVerifier():

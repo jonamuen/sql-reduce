@@ -2,6 +2,24 @@ from lark import Tree, Token
 from typing import Union, Optional
 
 
+def expand_grammar(filename: str):
+    """
+    Replace newlines preceded by a backslash with whitespace.
+    This allows linebreaks inside grammar definitions.
+    :param filename: path to file
+    :return: None
+    """
+    name, extension = filename.split('.')
+    exp_filename = name + 'expanded.' + extension
+    with open(filename) as in_file:
+        with open(exp_filename, 'w') as out_file:
+            for line in in_file:
+                if len(line) >= 2 and line[-2] == '\\':
+                    out_file.write(line[:-2] + ' ')
+                else:
+                    out_file.write(line)
+
+
 def partial_equivalence(full: Union[Tree, Token], partial: Optional[Union[Tree, Token]]):
     # TODO: define equivalence formally and prove correctness of this function
     """
