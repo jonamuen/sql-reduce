@@ -1,5 +1,5 @@
 from lark import *
-from transformation import EmptyTransformation, PrefixRemover, StatementRemover
+from transformation import EmptyTransformation, PrefixRemover, StatementRemover, PrettyPrinter
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -20,31 +20,6 @@ def expand_grammar(filename: str):
                     out_file.write(line[:-2] + ' ')
                 else:
                     out_file.write(line)
-
-
-class PrettyPrinter(Transformer):
-    """
-    Computes the string representation of an SQL parse-tree
-    """
-    def __default_token__(self, token):
-        return token.value
-
-    @v_args(tree=True)
-    def sql_stmt(self, tree):
-        s = ""
-        for c in tree.children:
-            s += (c + ' ')
-        s = s.rstrip()
-        return s + ';'
-
-    def __default__(self, data, children, meta):
-        s = ""
-        for c in children:
-            # no space before ";"
-            if c == ";":
-                s = s.rstrip()
-            s += (c + " ")
-        return s.rstrip()
 
 
 class AbstractVerifier():
