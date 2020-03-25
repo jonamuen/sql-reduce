@@ -22,6 +22,11 @@ class PartialEquivalenceTest(unittest.TestCase):
         partial = Tree('b', [])
         self.assertFalse(partial_equivalence(full, partial))
 
+    def test_none_children(self):
+        full = Tree('a', [])
+        partial = Tree('a', None)
+        self.assertTrue(partial_equivalence(full, partial))
+
     def test_num_children_mismatch(self):
         full = Tree('a', [Tree('b', [])])
         partial = Tree('a', [])
