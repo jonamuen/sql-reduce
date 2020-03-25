@@ -42,14 +42,14 @@ class StatementRemover(Transformer):
     """
     Remove specified SQL statements.
     """
-    def __init__(self, removeIndices=[]):
+    def __init__(self, remove_indices=[]):
         super().__init__()
         self.i = 0
-        self.removeIndices = removeIndices
+        self.remove_indices = remove_indices
 
     @v_args(tree=True)
     def sql_stmt(self, tree):
         self.i += 1
-        if self.i - 1 in self.removeIndices:
+        if self.i - 1 in self.remove_indices:
             raise Discard()
         return tree

@@ -75,9 +75,9 @@ if __name__ == '__main__':
 
     e = EmptyTransformation()
     prm = PrefixRemover(visit_tokens=True)
-    srm = StatementRemover(removeIndices=[1, 2])
+    srm = StatementRemover(remove_indices=[1, 2])
     p = PrettyPrinter(visit_tokens=True)
-    stmt = "CREATE TABLE t (id INT); SELECT ';' FROM t; jsdfe''';';"
+    stmt = "CREATE TABLE t (id INT); SELECT ';' FROM t; jsdfe''';'; DELETE FROM t0 WHERE id=0;"
     tree = l.parse(stmt)
     tree = prm.transform(tree)
     print(tree.pretty())
