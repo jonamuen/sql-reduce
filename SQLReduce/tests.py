@@ -49,10 +49,11 @@ class PartialEquivalenceTest(unittest.TestCase):
 
 
 class ParserTest(unittest.TestCase):
-    def setUp(self) -> None:
+    @classmethod
+    def setUpClass(cls) -> None:
         expand_grammar('sql.lark')
         with open("sqlexpanded.lark") as f:
-            self.parser = Lark(f, start="sql_stmt_list", debug=True, parser='lalr')
+            cls.parser = Lark(f, start="sql_stmt_list", debug=True, parser='lalr')
 
     def test_simple_select(self):
         self.parser.parse("SELECT 0;")
@@ -105,13 +106,14 @@ class ParserTest(unittest.TestCase):
 
 
 class DiscardTest(unittest.TestCase):
-    def setUp(self) -> None:
+    @classmethod
+    def setUpClass(cls) -> None:
         expand_grammar('sql.lark')
         with open("sqlexpanded.lark") as f:
-            self.parser = Lark(f, start="sql_stmt_list", debug=True, parser='lalr')
-        self.tree = self.parser.parse("CREATE TABLE t0 (id INT);"
-                                      "SELECT c0 FROM t0;"
-                                      "DELETE FROM t0 WHERE id=0;")
+            cls.parser = Lark(f, start="sql_stmt_list", debug=True, parser='lalr')
+        cls.tree = cls.parser.parse("CREATE TABLE t0 (id INT);"
+                                    "SELECT c0 FROM t0;"
+                                    "DELETE FROM t0 WHERE id=0;")
 
     def test_remove_nothing(self):
         srm = StatementRemover([])
@@ -162,6 +164,9 @@ class DiscardTest(unittest.TestCase):
                     i += 1
 
 
+class PrettyPrinterTest(unittest.TestCase):
+    def setUp(self) -> None:
+        pass
 
 if __name__ == '__main__':
     unittest.main()

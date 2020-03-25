@@ -34,6 +34,7 @@ any_word: table_name "." NAME | NAME
 table_name: NAME
 column_name: table_name "." NAME
            | NAME
+           | STAR
 
 // TODO: check what names are allowed and how values are specified
 name_or_value: NAME
