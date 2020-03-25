@@ -87,11 +87,11 @@ class ParserTest(unittest.TestCase):
 
     def test_multiple_stmts(self):
         tree = self.parser.parse("CREATE TABLE t0 (id INT); SELECT id FROM t0;")
-        self.assertEqual(2, len(tree.children))
-        self.assertEqual("sql_stmt", tree.children[0].data)
-        self.assertEqual("sql_stmt", tree.children[1].data)
-        self.assertEqual("create_table_stmt", tree.children[0].children[0].data)
-        self.assertEqual("select_stmt", tree.children[1].children[0].data)
+        expected_partial =\
+            Tree('sql_stmt_list', [
+                Tree('sql_stmt', [Tree("create_table_stmt", None)]),
+                Tree('sql_stmt', [Tree("select_stmt", None)])])
+        self.assertTrue(partial_equivalence(tree, expected_partial))
 
 
 if __name__ == '__main__':
