@@ -1,6 +1,12 @@
 from lark import Transformer, v_args, Discard
 from lark import Tree
 from lark.lexer import Token
+from itertools import combinations
+
+
+class AbstractTransformationsIterator:
+    def all_transforms(self, tree):
+        raise NotImplementedError
 
 
 class EmptyTransformation(Transformer):
@@ -63,7 +69,7 @@ class PrettyPrinter(Transformer):
         return s.rstrip()
 
 
-class StatementRemover(Transformer):
+class StatementRemover(Transformer, AbstractTransformationsIterator):
     """
     Remove specified SQL statements.
     """
@@ -78,3 +84,11 @@ class StatementRemover(Transformer):
         if self.i - 1 in self.remove_indices:
             raise Discard()
         return tree
+
+    def all_transforms(self, tree):
+        num_stmt = len(tree.children)
+        for k in range(1, num_stmt + 1):
+            for x in combinations(range(num_stmt), k):
+                self.__init__(list(x))
+                r = self.transform(tree)
+                yield r
