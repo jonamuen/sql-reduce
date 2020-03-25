@@ -1,8 +1,44 @@
 import unittest
-from lark import Lark, Tree
-from lark import LarkError, ParseError
+from lark import Lark, Tree, Token
+from lark import ParseError
 from sql_parser import expand_grammar
-import os
+from tree_tools import partial_equivalence
+
+
+class PartialEquivalenceTest(unittest.TestCase):
+    def test_simple_equiv(self):
+        full = Tree('n0', [])
+        partial = None
+        self.assertTrue(partial_equivalence(full, partial))
+
+    def test_identical(self):
+        full = Tree('n0', [])
+        self.assertTrue(partial_equivalence(full, full))
+
+    def test_label_mismatch(self):
+        full = Tree('a', [])
+        partial = Tree('b', [])
+        self.assertFalse(partial_equivalence(full, partial))
+
+    def test_num_children_mismatch(self):
+        full = Tree('a', [Tree('b', [])])
+        partial = Tree('a', [])
+        self.assertFalse(partial_equivalence(full, partial))
+
+    def test_child_mismatch_tree(self):
+        full = Tree('a', [Tree('b', [])])
+        partial = Tree('a', [Tree('c', [])])
+        self.assertFalse(partial_equivalence(full, partial))
+
+    def test_child_mismatch_token_value(self):
+        full = Tree('a', [Token('t0', 'test')])
+        partial = Tree('a', [Token('t0', 'toast')])
+        self.assertFalse(partial_equivalence(full, partial))
+
+    def test_child_mismatch_token_type(self):
+        full = Tree('a', [Token('t0', 'test')])
+        partial = Tree('a', [Token('t1', 'test')])
+        self.assertFalse(partial_equivalence(full, partial))
 
 
 class ParserTest(unittest.TestCase):
