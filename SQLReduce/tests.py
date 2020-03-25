@@ -44,7 +44,7 @@ class PartialEquivalenceTest(unittest.TestCase):
 class ParserTest(unittest.TestCase):
     def setUp(self) -> None:
         expand_grammar('sql.lark')
-        with open("sql.lark") as f:
+        with open("sqlexpanded.lark") as f:
             self.parser = Lark(f, start="sql_stmt_list", debug=True, parser='lalr')
 
     def test_simple_select(self):
