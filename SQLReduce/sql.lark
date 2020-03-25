@@ -8,10 +8,9 @@ select_stmt.1: K_SELECT expr ("," expr)* from_clause? where_clause? limit_clause
 
 create_table_stmt.1: K_CREATE K_TABLE NAME "(" column_def_list ")"
 
-unexpected_stmt.0: (ERROR | VALUE) +
-
-//*? match non-greedily
-ERROR.0: /(.+?)/
+// include VALUE to ensure semicolons in strings are handled properly
+// use column_name to match any unidentified keyword or column name
+unexpected_stmt.0: (VALUE | column_name) +
 
 from_clause: K_FROM NAME join_clause*
 

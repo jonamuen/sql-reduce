@@ -3,9 +3,10 @@ from transformation import EmptyTransformation, PrefixRemover, StatementRemover
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
+
 def expand_grammar(filename: str):
     """
-    Replace newlines preceded by \ with whitespace.
+    Replace newlines preceded by a backslash with whitespace.
     This allows linebreaks inside grammar definitions.
     :param filename: path to file
     :return: None
@@ -27,6 +28,14 @@ class PrettyPrinter(Transformer):
     """
     def __default_token__(self, token):
         return token.value
+
+    @v_args(tree=True)
+    def sql_stmt(self, tree):
+        s = ""
+        for c in tree.children:
+            s += (c + ' ')
+        s = s.rstrip()
+        return s + ';'
 
     def __default__(self, data, children, meta):
         s = ""
