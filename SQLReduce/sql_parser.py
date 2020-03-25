@@ -5,26 +5,6 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 
 
-class AbstractVerifier():
-    """
-    Abstract base class for a verifier.
-    AbstractVerifier should be subclassed and verify overridden.
-    """
-    def verify(self, a: str, b: str):
-        """
-        Override this method to implement a comparison function
-        :param a: An SQL statement
-        :param b: An SQL statement
-        :return: bool: True if a is equivalent to b
-        """
-        raise NotImplementedError
-
-
-class MyVerifier(AbstractVerifier):
-    def verify(self, stmt):
-        pass
-
-
 if __name__ == '__main__':
     expand_grammar('sql.lark')
 
