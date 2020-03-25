@@ -4,7 +4,7 @@ from lark import Lark, Tree, Token
 from lark import ParseError
 from sql_parser import expand_grammar
 from tree_tools import partial_equivalence
-from transformation import StatementRemover
+from transformation import StatementRemover, PrettyPrinter
 
 
 class PartialEquivalenceTest(unittest.TestCase):
@@ -165,8 +165,29 @@ class DiscardTest(unittest.TestCase):
 
 
 class PrettyPrinterTest(unittest.TestCase):
-    def setUp(self) -> None:
-        pass
+    @classmethod
+    def setUpClass(cls) -> None:
+        expand_grammar('sql.lark')
+        with open("sqlexpanded.lark") as f:
+            cls.parser = Lark(f, start="sql_stmt_list", debug=True, parser='lalr')
+        cls.printer = PrettyPrinter()
+
+    def test_select(self):
+        tree = self.parser.parse("SELECT * FROM t0;")
+        self.assertEqual("SELECT * FROM t0;", self.printer.transform(tree))
+
+    def test_unexpected(self):
+        tree = self.parser.parse("SLCT * FROM t0;")
+        self.assertEqual("SLCT * FROM t0;", self.printer.transform(tree))
+
+    def test_whitespace(self):
+        tree = self.parser.parse("SELECT     *     FROM    t0    ;")
+        self.assertEqual("SELECT * FROM t0;", self.printer.transform(tree))
+
+    def test_nested(self):
+        tree = self.parser.parse("SELECT * FROM (SELECT * FROM t0);")
+        self.assertEqual("SELECT * FROM (SELECT * FROM t0);", self.printer.transform(tree))
+
 
 if __name__ == '__main__':
     unittest.main()
