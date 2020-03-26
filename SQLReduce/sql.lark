@@ -4,18 +4,23 @@ sql_stmt: select_stmt
         | create_table_stmt
         | unexpected_stmt
 
-select_stmt.1: k_select k_distinct? expr_as ("," expr_as)* from_clause? \
-				where_clause? (k_as NAME)? limit_clause?
+select_stmt.1: k_select k_distinct? subquery_or_expr_as \
+                ("," subquery_or_expr_as)* from_clause? \
+                where_clause? limit_clause? offset_clause?
 
 create_table_stmt.1: k_create k_table NAME LPAREN column_def_list RPAREN
 
 // include VALUE to ensure semicolons in strings are handled properly
 // use column_name to match any unidentified keyword or column name
-unexpected_stmt.0: ("," | VALUE | any_word | operator | LPAREN unexpected_stmt RPAREN) +
+unexpected_stmt.0: (ERR | VALUE | LPAREN unexpected_stmt RPAREN) +
 
-subquery_or_expr: LPAREN select_stmt RPAREN | expr
+ERR.0: /.+?/
 
-from_clause: k_from subquery_or_expr join_clause*
+subquery_or_expr_as: subquery_or_expr (k_as NAME)?
+
+subquery_or_expr: LPAREN (select_stmt) RPAREN | expr
+
+from_clause: k_from subquery_or_expr_as join_clause*
 
 column_def_list: NAME sql_type? ("," NAME sql_type?)*
 
@@ -25,7 +30,7 @@ where_clause: k_where expr
 
 limit_clause: k_limit POS_INT
 
-expr_as: expr (k_as NAME)?
+offset_clause: k_offset POS_INT
 
 // TODO: expand expr
 // expr_helper resolves shift/reduce conflicts by forcing right associativity
@@ -34,6 +39,8 @@ expr: expr_helper operator expr | expr_helper
 expr_helper: LPAREN expr RPAREN
            | column_name
            | VALUE
+           | k_cast LPAREN expr k_as sql_type RPAREN
+           | k_nullif LPAREN expr ("," expr)+ RPAREN
 
 any_word: table_name "." NAME | NAME
 
@@ -49,7 +56,7 @@ name_or_value: NAME
 sql_type: NAME ("("VALUE ")")?
 
 // TODO: add more operators
-operator: PLUS | MINUS | STAR | SLASH | EQUAL | GREATER | LESS
+operator: PLUS | MINUS | STAR | SLASH | EQUAL | GREATER | LESS | k_is | k_or
 
 !k_select: "SELECT" | "select"
 !k_update: "UPDATE" | "update"
@@ -62,6 +69,11 @@ operator: PLUS | MINUS | STAR | SLASH | EQUAL | GREATER | LESS
 !k_limit: "LIMIT" | "limit"
 !k_distinct: "DISTINCT" | "distinct"
 !k_as: "AS" | "as"
+!k_is: "IS" | "is"
+!k_or: "OR" | "or"
+!k_offset: "OFFSET" | "offset"
+!k_cast: "CAST" | "cast"
+!k_nullif: "NULLIF" | "nullif"
 
 PLUS: "+"
 MINUS: "-"
@@ -74,7 +86,7 @@ LESS: "<"
 LPAREN: "("
 RPAREN: ")"
 
-NAME.1: /[a-zA-Z_]/ /[a-zA-Z0-9]*/
+NAME.2: /[a-zA-Z_]/ /[a-zA-Z0-9_]*/
 
 VALUE.2: /'([^']|'')*'/
        | ("+"|"-")? /[0-9]+/ /(\.[0-9]*)/?

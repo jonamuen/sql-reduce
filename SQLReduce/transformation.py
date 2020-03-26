@@ -63,9 +63,11 @@ class PrettyPrinter(Transformer):
         s = ""
         for c in children:
             # no space before ";"
-            if c == ";":
+            if c == ";" or c == ")":
                 s = s.rstrip()
             s += (c + " ")
+            if c == "(":
+                s = s.rstrip()
         return s.rstrip()
 
 
@@ -84,6 +86,10 @@ class StatementRemover(Transformer, AbstractTransformationsIterator):
         if self.i - 1 in self.remove_indices:
             raise Discard()
         return tree
+
+    def transform(self, tree: Tree) -> Tree:
+        self.i = 0
+        return super().transform(tree)
 
     def all_transforms(self, tree):
         num_stmt = len(tree.children)

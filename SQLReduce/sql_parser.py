@@ -15,7 +15,7 @@ if __name__ == '__main__':
     prm = PrefixRemover(visit_tokens=True)
     srm = StatementRemover(remove_indices=[1, 2])
     p = PrettyPrinter(visit_tokens=True)
-    stmt = "CREATE TABLE t (id INT); SELECT ';' FROM t; jsdfe''';'; DELETE FROM t0 WHERE id=0;"
+    stmt = "CREATE TABLE t (id INT); SELECT ';' FROM t; jsdfe''';'; SELECT c0 FROM (SELECT c0 FROM t0 WHEN c0 > 0) WHERE id=(((0)));"
     tree = parser.parse(stmt)
     tree = prm.transform(tree)
     print(tree.pretty())
