@@ -103,7 +103,10 @@ class ParserTest(unittest.TestCase):
             Tree('sql_stmt_list', [
                 Tree('sql_stmt', [Tree("create_table_stmt", None)]),
                 Tree('sql_stmt', [Tree("select_stmt", None)])])
+        print(tree.pretty())
         self.assertTrue(partial_equivalence(tree, expected_partial))
+
+
 
 
 class SQLSmithFuzzTests(unittest.TestCase):
@@ -116,18 +119,23 @@ class SQLSmithFuzzTests(unittest.TestCase):
 
     def test_sqlite(self):
         passed = 0
+        total = 730
         for f in self.sqlitedir.iterdir():
             if f.suffix == '.sql':
                 with f.open():
                     cmd = f.read_text()
                 try:
-                    self.parser.parse(cmd)
+                    tree = self.parser.parse(cmd)
+                    self.assertEqual(tree.data, "sql_stmt_list")
+                    print(cmd)
+                    self.assertNotEqual(tree.children[0].children[0].data, "unexpected_stmt")
                     passed += 1
                 except ParseError as e:
-                    print(f"passed: {passed}")
+                    print(f"passed: {passed}/{total}")
                     print(f)
                     print(cmd)
                     raise e
+        print(f"passed: {passed}/{total}")
 
 
 class DiscardTest(unittest.TestCase):
@@ -150,6 +158,7 @@ class DiscardTest(unittest.TestCase):
 
     def test_remove_first(self):
         srm = StatementRemover([0])
+        print(srm.transform(self.tree).pretty())
         expected_partial = \
             Tree("sql_stmt_list", [
                 Tree("sql_stmt", [Tree("select_stmt", None)]),
@@ -159,6 +168,7 @@ class DiscardTest(unittest.TestCase):
 
     def test_remove_last(self):
         srm = StatementRemover([2])
+        print(srm.transform(self.tree).pretty())
         expected_partial =\
             Tree("sql_stmt_list", [
                 Tree("sql_stmt", [Tree("create_table_stmt", None)]),
