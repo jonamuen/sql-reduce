@@ -7,7 +7,7 @@ def expand_grammar(filename: str):
     Replace newlines preceded by a backslash with whitespace.
     This allows linebreaks inside grammar definitions.
     :param filename: path to file
-    :return: None
+    :return: The filename of the expanded grammar file.
     """
     name, extension = filename.split('.')
     exp_filename = name + 'expanded.' + extension
@@ -18,6 +18,7 @@ def expand_grammar(filename: str):
                     out_file.write(line[:-2] + ' ')
                 else:
                     out_file.write(line)
+    return exp_filename
 
 
 def partial_equivalence(full: Union[Tree, Token], partial: Optional[Union[Tree, Token]]):
