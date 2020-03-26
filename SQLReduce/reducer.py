@@ -1,12 +1,11 @@
 from verifier import AbstractVerifier, SQLiteReturnSetVerifier
 from transformation import AbstractTransformationsIterator, PrettyPrinter, StatementRemover
 from typing import List
-from sql_parser import expand_grammar
-from lark import Lark
+from sql_parser import SQLParser
 
 
 class Reducer:
-    def __init__(self, parser: Lark, verifier: AbstractVerifier,
+    def __init__(self, parser: SQLParser, verifier: AbstractVerifier,
                  transforms: List[AbstractTransformationsIterator]):
         self.transforms = transforms
         self.pprinter = PrettyPrinter()
@@ -44,10 +43,8 @@ class Reducer:
 
 if __name__ == '__main__':
     transforms = [StatementRemover()]
-    expand_grammar('sql.lark')
 
-    with open('sqlexpanded.lark') as f:
-        parser = Lark(f, start="sql_stmt_list", debug=True, parser='lalr')
+    parser = SQLParser("sql.lark", start="sql_stmt_list", debug=True, parser='lalr')
     vrf = SQLiteReturnSetVerifier('test/test_reduce.sqlite')
     r = Reducer(parser, vrf, transforms)
     reduced = r.reduce("CREATE TABLE t0 (id INT); INSERT INTO t0 VALUES (0); "
