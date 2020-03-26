@@ -5,6 +5,7 @@ from lark import ParseError
 from sql_parser import expand_grammar
 from utils import partial_equivalence
 from transformation import StatementRemover, PrettyPrinter
+from pathlib import Path
 
 
 class PartialEquivalenceTest(unittest.TestCase):
@@ -103,6 +104,30 @@ class ParserTest(unittest.TestCase):
                 Tree('sql_stmt', [Tree("create_table_stmt", None)]),
                 Tree('sql_stmt', [Tree("select_stmt", None)])])
         self.assertTrue(partial_equivalence(tree, expected_partial))
+
+
+class SQLSmithFuzzTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.sqlitedir = Path("test/sqlsmith/sqlite")
+        expand_grammar('sql.lark')
+        with open("sqlexpanded.lark") as f:
+            cls.parser = Lark(f, start="sql_stmt_list", debug=True, parser='lalr')
+
+    def test_sqlite(self):
+        passed = 0
+        for f in self.sqlitedir.iterdir():
+            if f.suffix == '.sql':
+                with f.open():
+                    cmd = f.read_text()
+                try:
+                    self.parser.parse(cmd)
+                    passed += 1
+                except ParseError as e:
+                    print(f"passed: {passed}")
+                    print(f)
+                    print(cmd)
+                    raise e
 
 
 class DiscardTest(unittest.TestCase):
