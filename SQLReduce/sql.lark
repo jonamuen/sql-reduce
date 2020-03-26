@@ -2,7 +2,6 @@ sql_stmt_list: ";"* (sql_stmt _SEMI+)+
 
 sql_stmt: select_stmt
         | create_table_stmt
-        | unexpected_stmt
 
 select_stmt.1: k_select k_distinct? subquery_or_expr_as \
                 ("," subquery_or_expr_as)* from_clause? \
