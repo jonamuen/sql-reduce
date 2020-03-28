@@ -62,8 +62,8 @@ class PrettyPrinter(Transformer):
     def __default__(self, data, children, meta):
         s = ""
         for c in children:
-            # no space before ";"
-            if c == ";" or c == ")":
+            # no space before ";", ")", ","
+            if c == ";" or c == ")" or c == ",":
                 s = s.rstrip()
             s += (c + " ")
             if c == "(":
