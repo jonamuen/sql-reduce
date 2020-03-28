@@ -6,7 +6,11 @@ from utils import partial_equivalence
 from transformation import StatementRemover, PrettyPrinter
 from pathlib import Path
 from sql_parser import SQLParser
+from reducer import Reducer
+from verifier import AbstractVerifier, ExternalVerifier, SQLiteReturnSetVerifier
 
+# TODO: add tests for reducer
+# TODO: add tests for split_into_stmts
 
 class PartialEquivalenceTest(unittest.TestCase):
     def test_simple_equiv(self):
@@ -207,6 +211,67 @@ class PrettyPrinterTest(unittest.TestCase):
     def test_nested(self):
         tree = self.parser.parse("SELECT * FROM (SELECT * FROM t0);")
         self.assertEqual("SELECT * FROM (SELECT * FROM t0);", self.printer.transform(tree))
+
+
+class VerifierTest(unittest.TestCase):
+    def test_base_class_raises_error(self):
+        verifier = AbstractVerifier()
+        self.assertRaises(NotImplementedError, lambda: verifier.verify([], []))
+
+    def test_external_verifier_success(self):
+        verifier = ExternalVerifier("test/external_verifier_success.sh")
+        self.assertTrue(verifier.verify([], []))
+
+    def test_external_verifier_fail(self):
+        verifier = ExternalVerifier("test/external_verifier_failure.sh")
+        self.assertFalse(verifier.verify([], []))
+
+
+class ReducerTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
+        verifier = SQLiteReturnSetVerifier("test/test_reduce.sqlite")
+        cls.reducer = Reducer(parser, verifier, [StatementRemover()])
+        cls.pprinter = PrettyPrinter()
+
+    def test_unneeded_inserts_and_tables(self):
+        stmt = "CREATE TABLE t0 (id INT);" \
+               "CREATE TABLE t1 (id INT);" \
+               "CREATE TABLE t2 (id INT);" \
+               "INSERT INTO t0 VALUES (0);" \
+               "INSERT INTO t0 VALUES (1);" \
+               "INSERT INTO t0 VALUES (2);" \
+               "SELECT * FROM t0 WHERE id = 0;"
+
+        # note: whitespace at the end of lines required due to the way the
+        # pretty printer formats statements
+        expected = "CREATE TABLE t0 (id INT); " \
+                   "INSERT INTO t0 VALUES (0); " \
+                   "SELECT * FROM t0 WHERE id = 0;"
+
+        expected_tree_partial = \
+            Tree('sql_stmt_list', [
+                Tree('sql_stmt', [Tree("create_table_stmt", None)]),
+                Tree('sql_stmt', [None]),
+                Tree('sql_stmt', [Tree("select_stmt", None)])])
+        result = self.reducer.reduce(stmt)
+        result_str = self.pprinter.transform(result)
+        self.assertEqual(expected, result_str)
+        self.assertTrue(partial_equivalence(result, expected_tree_partial))
+
+    def test_remove_unneeded_columns(self):
+        stmt = "CREATE TABLE t0 (c0 INT, c1 INT);" \
+               "INSERT INTO t0 VALUES (0, 1);" \
+               "SELECT c0 FROM t0;"
+
+        expected = "CREATE TABLE t0 (c0 INT); " \
+                   "INSERT INTO t0 VALUES (0); " \
+                   "SELECT c0 FROM t0;"
+
+        result = self.reducer.reduce(stmt)
+        result_str = self.pprinter.transform(result)
+        self.assertEqual(expected, result_str)
 
 
 if __name__ == '__main__':

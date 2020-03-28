@@ -1,6 +1,6 @@
 import sqlite3
 from typing import List
-from os import remove
+from os import remove, system
 
 
 class AbstractVerifier:
@@ -51,3 +51,33 @@ class SQLiteReturnSetVerifier(AbstractVerifier):
         except sqlite3.Error as e:
             results = e
         return results
+
+
+class ExternalVerifier(AbstractVerifier):
+    """
+    Use an external verifier to check if two sql statements (provided as lists
+    of strings) are equivalent. If the external verifier returns 0, the
+    statements are considered equivalent. The external verifier must accept two
+    files containing sql statements as arguments.
+    """
+    def __init__(self, exec_path: str):
+        """
+        :param exec_path: Path to the external verifier
+        """
+        self.exec_path = exec_path
+
+    def verify(self, a: List[str], b: List[str]):
+        """
+        Implement verify from AbstractVerifier
+        """
+        # TODO: place these files in a better location / ensure no existing file is overwritten
+        arg1 = "tmp1.sql"
+        arg2 = "tmp2.sql"
+        with open(arg1, 'w') as f:
+            f.writelines(a)
+        with open(arg2, 'w') as f:
+            f.writelines(b)
+        return_code = system(f"{self.exec_path} {arg1} {arg2}")
+        remove(arg1)
+        remove(arg2)
+        return return_code == 0
