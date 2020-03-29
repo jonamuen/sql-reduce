@@ -47,7 +47,6 @@ if __name__ == '__main__':
     parser = SQLParser("sql.lark", start="sql_stmt_list", debug=True, parser='lalr')
     vrf = SQLiteReturnSetVerifier('test/test_reduce.sqlite')
     r = Reducer(parser, vrf, transforms)
-    reduced = r.reduce("CREATE TABLE t0 (id INT); INSERT INTO t0 VALUES (0); "
-                   "INSERT INTO t0 VALUES (1); SELECT * FROM t0 WHERE id = 0;")
+    reduced = r.reduce("CREATE TABLE t0 (id INT); INSERT INTO t0 VALUES (0);"
+                       "INSERT INTO t0 VALUES (1); SELECT * FROM t0 WHERE id = 0;")
     print(r.pprinter.transform(reduced))
-

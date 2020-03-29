@@ -1,6 +1,7 @@
 import sqlite3
-from typing import List
+from typing import List, Union
 from os import remove, system
+from pathlib import Path
 
 
 class AbstractVerifier:
@@ -81,3 +82,26 @@ class ExternalVerifier(AbstractVerifier):
         remove(arg1)
         remove(arg2)
         return return_code == 0
+
+
+class Verifier(AbstractVerifier):
+    """
+    Implementation for an external verifier that works like c-reduce.
+    """
+    def __init__(self, exec_path: Union[str, Path]):
+        self.exec_path = Path(exec_path)
+        self.working_dir = self.exec_path.parent
+
+    # TODO: unify interfaces (a = original currently not needed here)
+    def verify(self, a: List[str], b: List[str]):
+        """
+        Writes the reduced statement to the same directory as the executable, then
+        executes the executable in that directory. If return code is 0, return True.
+        Otherwise return False.
+        :param a: sql statement(s) provided as list of strings
+        :param b: sql statement(s) provided as list of strings
+        :return: Bool
+        """
+        with open(self.working_dir / 'small.sql', 'w') as f:
+            f.writelines(b)
+        return system(f"cd {self.working_dir}; {self.exec_path.absolute()}") == 0

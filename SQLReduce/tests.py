@@ -7,9 +7,10 @@ from transformation import StatementRemover, PrettyPrinter
 from pathlib import Path
 from sql_parser import SQLParser
 from reducer import Reducer
-from verifier import AbstractVerifier, ExternalVerifier, SQLiteReturnSetVerifier
+from verifier import AbstractVerifier, ExternalVerifier, SQLiteReturnSetVerifier, Verifier
 
 # TODO: add tests for reducer
+# TODO: add tests for verifier
 # TODO: add tests for split_into_stmts
 
 class PartialEquivalenceTest(unittest.TestCase):
@@ -226,6 +227,13 @@ class VerifierTest(unittest.TestCase):
         verifier = ExternalVerifier("test/external_verifier_failure.sh")
         self.assertFalse(verifier.verify([], []))
 
+    def test_external_like_c_reduce_success(self):
+        verifier = Verifier("test/external_verifier_success.sh")
+        self.assertTrue(verifier.verify([], []))
+
+    def test_external_like_c_reduce_failure(self):
+        verifier = Verifier("test/external_verifier_failure.sh")
+        self.assertFalse(verifier.verify([], []))
 
 class ReducerTest(unittest.TestCase):
     @classmethod
