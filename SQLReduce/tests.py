@@ -60,19 +60,28 @@ class ParserTest(unittest.TestCase):
         cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
 
     def test_simple_select(self):
-        self.parser.parse("SELECT 0;")
+        tree = self.parser.parse("SELECT 0;")
+        self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
 
     def test_simple_select_from(self):
-        self.parser.parse("SELECT c0 FROM t0;")
+        tree = self.parser.parse("SELECT c0 FROM t0;")
+        self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
 
     def test_simple_create(self):
-        self.parser.parse("CREATE TABLE t0 (id INT);")
+        tree = self.parser.parse("CREATE TABLE t0 (id INT);")
+        self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
+
+    def test_select_distinct(self):
+        tree = self.parser.parse("SELECT DISTINCT id FROM t0;")
+        self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
 
     def test_select_star(self):
-        self.parser.parse("SELECT * FROM t0;")
+        tree = self.parser.parse("SELECT * FROM t0;")
+        self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
 
     def test_select_with_table_ref(self):
-        self.parser.parse("SELECT t0.c0 FROM t0;")
+        tree = self.parser.parse("SELECT t0.c0 FROM t0;")
+        self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
 
     def test_semi_and_quote_in_str(self):
         tree = self.parser.parse("SELECT ''';' FROM t0;")
@@ -81,20 +90,47 @@ class ParserTest(unittest.TestCase):
 
     def test_unexpected_stmt(self):
         tree = self.parser.parse("SLCT ''';' FROM t0;")
-        self.assertEqual(1, len(tree.children))
         self.assertEqual("unexpected_stmt", tree.children[0].children[0].data)
 
     def test_limit(self):
         tree = self.parser.parse("SELECT c0 FROM t0 LIMIT 10;")
+        self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
 
     def test_join(self):
         tree = self.parser.parse("SELECT c0, c1 FROM t0 JOIN t1;")
+        self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
 
     def test_join_with_condition(self):
         tree = self.parser.parse("SELECT c0, c1 FROM t0 JOIN t1 ON c0=c1;")
+        self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
 
     def test_where(self):
         tree = self.parser.parse("SELECT c0 FROM t0 WHERE c0 = ';';")
+        self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
+
+    def test_insert(self):
+        tree = self.parser.parse("INSERT INTO t0 VALUES (0, 1), (1, 2);")
+        self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
+        tree = self.parser.parse("INSERT INTO t0(c0) VALUES (0);")
+        self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
+
+    def test_update(self):
+        tree = self.parser.parse("UPDATE t0 SET id = 0;")
+        self.assertEqual(1, len(list(tree.find_data("update_stmt"))))
+        tree = self.parser.parse("UPDATE t0 SET id = 0, name = '' where name = NULL;")
+        self.assertEqual(1, len(list(tree.find_data("update_stmt"))))
+
+    def test_delete(self):
+        tree = self.parser.parse("DELETE FROM t0;")
+        self.assertEqual(1, len(list(tree.find_data("delete_stmt"))))
+        tree = self.parser.parse("DELETE FROM t0 WHERE id = NULL;")
+        self.assertEqual(1, len(list(tree.find_data("delete_stmt"))))
+
+    def test_subquery(self):
+        stmt = "SELECT * FROM (SELECT id FROM t0 JOIN t1);"
+        tree = self.parser.parse(stmt)
+        self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
+        self.assertEqual(2, len(list(tree.find_data("select_stmt"))))
 
     def test_multiple_stmts(self):
         tree = self.parser.parse("CREATE TABLE t0 (id INT); SELECT id FROM t0;")
@@ -156,7 +192,7 @@ class DiscardTest(unittest.TestCase):
         expected_partial = \
             Tree("sql_stmt_list", [
                 Tree("sql_stmt", [Tree("select_stmt", None)]),
-                Tree("sql_stmt", [Tree("unexpected_stmt", None)])
+                Tree("sql_stmt", [Tree("delete_stmt", None)])
             ])
         self.assertTrue(partial_equivalence(srm.transform(self.tree), expected_partial))
 

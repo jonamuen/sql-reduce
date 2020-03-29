@@ -74,7 +74,8 @@ class SQLParser(Lark):
         for s in stmts:
             try:
                 trees.append(super().parse(s))
-            except LarkError:
+            except LarkError as e:
+                logging.log(logging.DEBUG, e)
                 # construct error tree
                 t = Tree("sql_stmt_list",
                          [Tree("sql_stmt",

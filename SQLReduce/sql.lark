@@ -2,12 +2,28 @@ sql_stmt_list: ";"* (sql_stmt _SEMI+)+
 
 sql_stmt: select_stmt
         | create_table_stmt
+        | insert_stmt
+        | update_stmt
+        | delete_stmt
 
 select_stmt.1: k_select k_distinct? subquery_or_expr_as \
                 ("," subquery_or_expr_as)* from_clause? \
                 where_clause? limit_clause? offset_clause?
 
-create_table_stmt.1: k_create k_table NAME LPAREN column_def_list RPAREN
+create_table_stmt.1: k_create k_table table_name LPAREN column_def_list RPAREN
+
+insert_stmt: k_insert k_into table_name (LPAREN column_list RPAREN)? k_values values_list
+
+update_stmt: k_update table_name k_set column_name EQUAL VALUE \
+                (COMMA column_name EQUAL VALUE)* where_clause?
+
+delete_stmt: k_delete k_from table_name where_clause?
+
+column_list: NAME (COMMA NAME)*
+
+values_list: value_tuple (COMMA value_tuple)*
+
+value_tuple: LPAREN VALUE (COMMA VALUE)* RPAREN
 
 // include VALUE to ensure semicolons in strings are handled properly
 // use column_name to match any unidentified keyword or column name
@@ -57,6 +73,7 @@ sql_type: NAME ("("VALUE ")")?
 // TODO: add more operators
 operator: PLUS | MINUS | STAR | SLASH | EQUAL | GREATER | LESS | k_is | k_or
 
+// force anonymous literals to appear in tree with ! prefix
 !k_select: "SELECT" | "select"
 !k_update: "UPDATE" | "update"
 !k_create: "CREATE" | "create"
@@ -73,6 +90,11 @@ operator: PLUS | MINUS | STAR | SLASH | EQUAL | GREATER | LESS | k_is | k_or
 !k_offset: "OFFSET" | "offset"
 !k_cast: "CAST" | "cast"
 !k_nullif: "NULLIF" | "nullif"
+!k_insert: "INSERT" | "insert"
+!k_into: "INTO" | "into"
+!k_values: "VALUES" | "values"
+!k_set: "SET" | "set"
+!k_delete: "DELETE" | "delete"
 
 PLUS: "+"
 MINUS: "-"
@@ -89,6 +111,8 @@ NAME.2: /[a-zA-Z_]/ /[a-zA-Z0-9_]*/
 
 VALUE.2: /'([^']|'')*'/
        | ("+"|"-")? /[0-9]+/ /(\.[0-9]*)/?
+       | "NULL"
+       | "null"
 
 POS_INT: /[0-9]+/
 
