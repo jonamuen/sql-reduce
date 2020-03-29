@@ -8,7 +8,7 @@ sql_stmt: select_stmt
 
 select_stmt.1: k_select k_distinct? subquery_or_expr_as \
                 ("," subquery_or_expr_as)* from_clause? \
-                where_clause? limit_clause? offset_clause?
+                where_clause? order_by_clause? limit_clause? offset_clause?
 
 create_table_stmt.1: k_create k_table table_name LPAREN column_def_list RPAREN
 
@@ -42,6 +42,8 @@ column_def_list: NAME sql_type? (COMMA NAME sql_type?)*
 join_clause: k_join NAME (k_on expr)?
 
 where_clause: k_where expr
+
+order_by_clause: k_order k_by column_name (k_asc | k_desc)
 
 limit_clause: k_limit POS_INT
 
@@ -98,6 +100,10 @@ operator: PLUS | MINUS | STAR | SLASH | EQUAL | GREATER | LESS | k_is | k_or | k
 !k_delete: "DELETE" | "delete"
 !k_not: "NOT" | "not"
 !k_and: "AND" | "and"
+!k_order: "ORDER" | "order"
+!k_by: "BY" | "by"
+!k_asc: "ASC" | "asc"
+!k_desc: "DESC" | "desc"
 
 PLUS: "+"
 MINUS: "-"
