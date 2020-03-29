@@ -1,0 +1,8 @@
+\section{Reducer}
+The reducer operates on parse trees of SQL statements. Since certain statements may not be recognized by the parser, the input is first split into single statements, which are then parsed individually to restrict errors to a single statement. A list of reductions is then applied repeatedly until a fixed-point is reached. Further reductions can be easily added by implementing the 
+%TODO: check actual name
+\texttt{AbstractTransformsIterator} class.
+
+\subsection{Coarse grained reductions}
+
+\texttt{StatementRemover} is the simplest reduction pass. It removes one or more statements at a time. The iterator \texttt{StatementRemover.all\_transforms} yields all combinations of removing between 1 and $n$ statements from a testcase, starting with combinations that remove a single statement.
