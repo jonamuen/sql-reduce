@@ -3,7 +3,7 @@ from itertools import combinations
 from lark import Tree, Token
 from lark import ParseError
 from utils import partial_equivalence
-from transformation import StatementRemover, PrettyPrinter
+from transformation import StatementRemover, PrettyPrinter, ColumnRemover
 from pathlib import Path
 from sql_parser import SQLParser
 from reducer import Reducer
@@ -264,6 +264,17 @@ class DiscardTest(unittest.TestCase):
                         j += 1
                     i += 1
 
+
+class ColumnRemoverTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.columnRemover = ColumnRemover()
+        cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
+
+    def test_simple(self):
+        stmt = "CREATE TABLE t0 (id INT, name VARCHAR(28)); SELECT id FROM t0;"
+        tree = self.parser.parse(stmt)
+        self.columnRemover._find_column_names(tree)
 
 class PrettyPrinterTest(unittest.TestCase):
     @classmethod
