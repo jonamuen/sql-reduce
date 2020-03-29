@@ -8,6 +8,7 @@ from pathlib import Path
 from sql_parser import SQLParser
 from reducer import Reducer
 from verifier import AbstractVerifier, ExternalVerifier, SQLiteReturnSetVerifier, Verifier
+import logging
 
 # TODO: add tests for reducer
 # TODO: add tests for verifier
@@ -126,11 +127,39 @@ class ParserTest(unittest.TestCase):
         tree = self.parser.parse("DELETE FROM t0 WHERE id = NULL;")
         self.assertEqual(1, len(list(tree.find_data("delete_stmt"))))
 
+    def test_not(self):
+        tree = self.parser.parse("SELECT c0 FROM t0 WHERE NOT c0 = NULL;")
+        self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
+
+    def test_and(self):
+        tree = self.parser.parse("SELECT c0 FROM t0 WHERE NOT c0 = NULL and c1 = 0;")
+        self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
+
+    def test_or(self):
+        tree = self.parser.parse("SELECT c0 FROM t0 WHERE NOT c0 = NULL or c1 = 0;")
+        self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
+
     def test_subquery(self):
         stmt = "SELECT * FROM (SELECT id FROM t0 JOIN t1);"
         tree = self.parser.parse(stmt)
         self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
         self.assertEqual(2, len(list(tree.find_data("select_stmt"))))
+
+    def test_advanced_subq(self):
+        # same as 7774.sql
+        stmt = """select
+                      subq_0.c0 as c0
+                    from
+                      (select
+                            ref_0.id as c0
+                          from
+                            main.t0 as ref_0
+                          where ref_0.name is not NULL
+                          limit 13) as subq_0
+                    where subq_0.c0 is NULL
+                    limit 131;"""
+        tree = self.parser.parse(stmt)
+        self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
 
     def test_multiple_stmts(self):
         tree = self.parser.parse("CREATE TABLE t0 (id INT); SELECT id FROM t0;")
@@ -157,6 +186,7 @@ class SQLSmithFuzzTests(unittest.TestCase):
                 with f.open():
                     cmd = f.read_text()
                 try:
+                    logging.log(logging.DEBUG, f.name)
                     tree = self.parser.parse(cmd)
                     self.assertEqual(tree.data, "sql_stmt_list")
                     #self.assertNotEqual(tree.children[0].children[0].data, "unexpected_stmt")

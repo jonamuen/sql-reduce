@@ -47,9 +47,9 @@ limit_clause: k_limit POS_INT
 
 offset_clause: k_offset POS_INT
 
-// TODO: expand expr
+// TODO: expand expr. e.g. add EXISTS. Allow queries in expr (e.g. 3494.sql)
 // expr_helper resolves shift/reduce conflicts by forcing right associativity
-expr: expr_helper operator expr | expr_helper
+expr: k_not? (expr_helper operator expr | expr_helper)
 
 expr_helper: LPAREN expr RPAREN
            | column_name
@@ -59,6 +59,7 @@ expr_helper: LPAREN expr RPAREN
 
 any_word: table_name "." NAME | NAME
 
+// TODO: fix table names with prefix (e.g main.t0). see 9215.sql
 table_name: NAME
 column_name: table_name "." NAME
            | NAME
@@ -71,7 +72,7 @@ name_or_value: NAME
 sql_type: NAME ("("VALUE ")")?
 
 // TODO: add more operators
-operator: PLUS | MINUS | STAR | SLASH | EQUAL | GREATER | LESS | k_is | k_or
+operator: PLUS | MINUS | STAR | SLASH | EQUAL | GREATER | LESS | k_is | k_or | k_and
 
 // force anonymous literals to appear in tree with ! prefix
 !k_select: "SELECT" | "select"
@@ -95,6 +96,8 @@ operator: PLUS | MINUS | STAR | SLASH | EQUAL | GREATER | LESS | k_is | k_or
 !k_values: "VALUES" | "values"
 !k_set: "SET" | "set"
 !k_delete: "DELETE" | "delete"
+!k_not: "NOT" | "not"
+!k_and: "AND" | "and"
 
 PLUS: "+"
 MINUS: "-"
