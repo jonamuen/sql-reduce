@@ -2,6 +2,7 @@ from lark import Transformer, v_args, Discard
 from lark import Tree
 from lark.lexer import Token
 from itertools import combinations
+from typing import Union
 
 
 class AbstractTransformationsIterator:
@@ -133,7 +134,7 @@ class ColumnNameFinder(Transformer):
 # TODO: can probably be implemented similar to type-checking in compiler design
 class ColumnRemover(Transformer, AbstractTransformationsIterator):
     """
-    Remove columns from parse tree
+    Remove columns from parse tree (ignores aliases with AS)
     """
     def __init__(self):
         super().__init__()
@@ -142,27 +143,64 @@ class ColumnRemover(Transformer, AbstractTransformationsIterator):
 
     @v_args(tree=True)
     def expr(self, tree):
+        # expr: k_not? (expr_helper operator expr | expr_helper)
+
+        # if there is a prefix NOT, set offset = 1
         if type(tree.children[0]) == Tree and tree.children[0].data == "k_not":
             offset = 1
         else:
             offset = 0
+
+        # copy children
         children = [x for x in tree.children]
-        if tree.children[offset] is None:
-            del children[offset]
-        if None in tree.children:
-            return None
+
+        if len(children) - offset == 1:
+            # case expr_helper
+            if None in children:
+                return None
+            else:
+                return Tree("expr", children)
+        elif len(children) - offset == 3:
+            # case expr_helper operator expr
+            if children[offset] is None:
+                # delete operator
+                del children[offset + 1]
+                # delete expr_helper
+                del children[offset]
+            elif children[offset + 2] is None:
+                # delete expr
+                del children[offset+2]
+                # delete operator
+                del children[offset+1]
+            if None in children:
+                # both sides of operator are None
+                return None
+            else:
+                return Tree("expr", children)
         else:
-            return tree
+            raise ValueError(f"Malformed expr:\n{tree.pretty()}")
 
     @v_args(tree=True)
     def column_name(self, tree: Tree):
+        """
+        Return None if any NAME token is in remove_set. Return tree otherwise.
+        See grammar reference below:
+
+        column_name: table_name "." NAME
+                   | NAME
+                   | STAR
+        :param tree:
+        :return:
+        """
         children = tree.children
         if type(children[0] == Tree):
+            # case table_name "." NAME
             if (children[0].children[0].value, children[2]) in self.remove_set:
                 return None
             else:
                 return tree
         else:
+            # case NAME | STAR
             if (children[0].value) in map(lambda x: x[1], self.remove_set):
                 return None
             else:
@@ -175,6 +213,28 @@ class ColumnRemover(Transformer, AbstractTransformationsIterator):
         else:
             return tree
 
+    def column_def_list(self, children):
+        # state 0: check next name token for removal
+        # state 1: add all following tokens up to and including COMMA
+        # state 2: skip all following tokens up to and including COMMA
+        state = 0
+        new_children = []
+        for c in children:
+            if state == 0 and type(c) == Token and c.type == "NAME":
+                if c.value in map(lambda x: x[1], self.remove_set):
+                    state = 2
+                else:
+                    new_children.append(c)
+                    state = 1
+            if state == 1:
+                new_children.append(c)
+                if type(c) == Token and c.type == "COMMA":
+                    state = 0
+            if state == 2:
+                if type(c) == Token and c.type == "COMMA":
+                    state = 0
+        return new_children
+
     def _find_column_names(self, tree: Tree):
         print(self.col_name_finder.transform(tree))
         for col_def in tree.find_data("column_def_list"):
@@ -186,3 +246,34 @@ class ColumnRemover(Transformer, AbstractTransformationsIterator):
             for x in combinations(col_names, k):
                 self.remove_set = x
                 yield self.transform(tree)
+
+
+class AliasContext:
+    def __init__(self):
+        self.aliases = {}
+
+    def add_alias(self, source, alias_name):
+        self.aliases[alias_name] = source
+
+    def resolve_alias(self, alias_name):
+        if not alias_name in self.aliases.keys():
+            return alias_name
+        else:
+            return self.resolve_alias(self.aliases[alias_name])
+
+class CRM:
+    """
+    Alias aware implementation of column remover.
+    """
+    def __init__(self, remove_set):
+        self.remove_set = remove_set
+
+    def removeColumn(self, tree: Union[Tree, Token], ctxt: AliasContext):
+        if type(tree) == Token:
+            if ctxt.resolve_alias(Token.value) in self.remove_set:
+                return None
+            else:
+                return tree
+        elif type(tree) == Tree:
+            if tree.data == "select_stmt":
+                pass
