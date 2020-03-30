@@ -2,7 +2,7 @@ from lark import Transformer, v_args, Discard
 from lark import Tree
 from lark.lexer import Token
 from itertools import combinations
-from typing import Union
+from typing import Union, Iterator
 
 
 class AbstractTransformationsIterator:
@@ -265,6 +265,86 @@ class AliasContext:
         else:
             return self.resolve_alias(self.aliases[alias_name])
 
+
+class SimpleColumnRemover(AbstractTransformationsIterator):
+    """
+    A simple reduction pass that tries to remove single columns from insert
+    statements. It doesn't handle aliases and doesn't guarantee syntactically
+    valid results (although most results probably are syntactically valid). The
+    index is counted across all column references.
+    Example:
+        INSERT INTO t0 VALUES (2, 1); INSERT INTO t1 (c0) VALUES (3);
+        2 is at index 0.
+        c0 is at index 2.
+
+    :param remove_index: index of the column that should be removed.
+    """
+    def __init__(self, remove_index=-1):
+        self.remove_index = remove_index
+        self._num_column_refs = 0
+
+    def _default(self, tree):
+        return Tree(tree.data, list(map(self.transform, tree.children)))
+
+    def transform(self, tree):
+        if type(tree) == Token:
+            return tree.__deepcopy__(None)
+        elif tree.data == "insert_stmt":
+            return self.insert_stmt(tree)
+        elif tree.data == "sql_stmt_list":
+            # reset at root of parse tree
+            self._num_column_refs = 0
+            return self._default(tree)
+        else:
+            return self._default(tree)
+
+    def insert_stmt(self, tree: Tree):
+        """
+        Insert statement grammar:
+        k_insert k_into table_name (LPAREN column_list RPAREN)? k_values values_list
+        :param tree:
+        :return:
+        """
+        values_list = tree.children[-1]
+        num_columns = len(values_list.children[0].children)
+        i = self.remove_index - self._num_column_refs
+        if 0 <= i < num_columns:
+            tree = tree.__deepcopy__(None)
+            if len(tree.children) == 8:
+                # has column references
+                column_list = tree.children[4]
+                del column_list.children[i]
+
+            # update values_list to new tree
+            values_list = tree.children[-1]
+            for value_tuple in values_list.children:
+                del value_tuple.children[i]
+        self._num_column_refs += num_columns
+        return tree
+
+    def all_transforms(self, tree: Tree) -> Iterator[Tree]:
+        """
+        Compute all reduced trees in which one column reference has been removed.
+        Returns an iterator that yields all possible reductions that remove one
+        column from an insert statement.
+
+        Note: There are two yield statements in this function. The first one
+        returns after attempting to remove column 0. After the first pass, the
+        number of columns in the tree is known, so a loop yields the remaining
+        reduction candidates.
+        :param tree: a parse tree
+        :return: an iterator of parse trees
+        """
+        # try removing index 0 and find number of columns at the same time
+        self.remove_index = 0
+        reduced = self.transform(tree)
+        num_column_refs = self._num_column_refs
+        yield reduced
+        for i in range(1, num_column_refs):
+            self.remove_index = i
+            yield self.transform(tree)
+
+
 class CRM:
     """
     Alias aware implementation of column remover.
@@ -280,4 +360,22 @@ class CRM:
                 return tree
         elif type(tree) == Tree:
             if tree.data == "select_stmt":
-                pass
+                from_clauses = list(filter(lambda x: x.data == "from_clause", tree.children))
+                if len(from_clauses) == 0:
+                    return tree
+                elif len(from_clauses) == 1:
+                    from_clause = from_clauses[0]
+
+                if tree.children[1].data == "k_distinct":
+                    subqueries = tree.children[2]
+                else:
+                    subqueries = tree.children[1]
+                assert subqueries.data == "subquery_or_expr_list"
+                for subq in subqueries.children:
+                    res = self.removeColumn(subq.children[0], ctxt)  # TODO
+                    # subquery_or_expr_as: subquery_or_expr (k_as NAME)?
+                    if len(subq.children) == 3:
+                        if res is not None:
+                            ctxt
+                    else:
+                        pass

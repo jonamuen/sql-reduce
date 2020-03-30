@@ -3,7 +3,7 @@ from itertools import combinations
 from lark import Tree, Token
 from lark import ParseError
 from utils import partial_equivalence
-from transformation import StatementRemover, PrettyPrinter, ColumnRemover
+from transformation import StatementRemover, PrettyPrinter, ColumnRemover, SimpleColumnRemover
 from pathlib import Path
 from sql_parser import SQLParser
 from reducer import Reducer
@@ -305,6 +305,58 @@ class PrettyPrinterTest(unittest.TestCase):
         self.assertEqual("SELECT * FROM (SELECT * FROM t0);", self.printer.transform(tree))
 
 
+class SimpleColumnRemoverTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.scrm = SimpleColumnRemover(1)
+        cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
+        cls.pprinter = PrettyPrinter()
+
+    def test_simple(self):
+        stmt = "INSERT INTO t0(c0, c1, c2) VALUES (0, 1, 2), (2, 1, 0);"
+        tree = self.parser.parse(stmt)
+        self.scrm.remove_index = 1
+        result = self.scrm.transform(tree)
+        expected = "INSERT INTO t0 (c0, c2) VALUES (0, 2), (2, 0);"
+        print(self.pprinter.transform(result))
+        self.assertEqual(self.parser.parse(expected), result)
+
+    def test_no_inserts(self):
+        stmt = "SELECT c0, c1 FROM t0;"
+        self.scrm.remove_index = 0
+        result = self.scrm.transform(self.parser.parse(stmt))
+        self.assertEqual(self.parser.parse(stmt), result)
+
+    def test_no_columns(self):
+        stmt = "INSERT INTO t0 VALUES (0, 1, 2);"
+        self.scrm.remove_index = 0
+        result = self.scrm.transform(self.parser.parse(stmt))
+        expected = "INSERT INTO t0 VALUES (1, 2);"
+        self.assertEqual(self.parser.parse(expected), result)
+
+    def test_multiple_inserts(self):
+        stmt = "INSERT INTO t0(c0, c1, c2) VALUES (0, 1, 2), (2, 1, 0);" \
+               "INSERT INTO t1(c0, c1) VALUES (3, 4);"
+        tree = self.parser.parse(stmt)
+        self.scrm.remove_index = 3
+        result = self.scrm.transform(tree)
+        expected = "INSERT INTO t0 (c0, c1, c2) VALUES (0, 1, 2), (2, 1, 0); " \
+                   "INSERT INTO t1 (c1) VALUES (4);"
+        print(self.pprinter.transform(result))
+        self.assertEqual(self.parser.parse(expected), result)
+
+    def test_all_transforms(self):
+        stmt = "INSERT INTO t0(c0, c1, c2) VALUES (0, 1, 2), (2, 1, 0);"
+        expected = [
+            "INSERT INTO t0 (c1, c2) VALUES (1, 2), (1, 0);",
+            "INSERT INTO t0 (c0, c2) VALUES (0, 2), (2, 0);",
+            "INSERT INTO t0 (c0, c1) VALUES (0, 1), (2, 1);"
+        ]
+        results = self.scrm.all_transforms(self.parser.parse(stmt))
+        for exp, res in zip(expected, results):
+            self.assertEqual(self.parser.parse(exp), res)
+
+
 class VerifierTest(unittest.TestCase):
     def test_base_class_raises_error(self):
         verifier = AbstractVerifier()
@@ -326,12 +378,13 @@ class VerifierTest(unittest.TestCase):
         verifier = Verifier("test/external_verifier_failure.sh")
         self.assertFalse(verifier.verify([], []))
 
+
 class ReducerTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
         verifier = SQLiteReturnSetVerifier("test/test_reduce.sqlite")
-        cls.reducer = Reducer(parser, verifier, [StatementRemover()])
+        cls.reducer = Reducer(parser, verifier, [StatementRemover(), SimpleColumnRemover()])
         cls.pprinter = PrettyPrinter()
 
     def test_unneeded_inserts_and_tables(self):
@@ -361,11 +414,11 @@ class ReducerTest(unittest.TestCase):
 
     def test_remove_unneeded_columns(self):
         stmt = "CREATE TABLE t0 (c0 INT, c1 INT);" \
-               "INSERT INTO t0 VALUES (0, 1);" \
+               "INSERT INTO t0 (c0, c1) VALUES (0, 1);" \
                "SELECT c0 FROM t0;"
 
         expected = "CREATE TABLE t0 (c0 INT); " \
-                   "INSERT INTO t0 VALUES (0); " \
+                   "INSERT INTO t0 (c0) VALUES (0); " \
                    "SELECT c0 FROM t0;"
 
         result = self.reducer.reduce(stmt)
