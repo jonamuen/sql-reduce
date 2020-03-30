@@ -43,7 +43,7 @@ column_def_list: column_def ("," column_def)*
 
 column_def: NAME sql_type?
 
-join_clause: k_join NAME (k_on expr)?
+join_clause: k_join NAME (k_as NAME)? (k_on expr)?
 
 where_clause: k_where expr
 
