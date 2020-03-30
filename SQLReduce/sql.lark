@@ -39,7 +39,9 @@ subquery_or_expr: LPAREN (select_stmt) RPAREN | expr
 
 from_clause: k_from subquery_or_expr_as join_clause*
 
-column_def_list: NAME sql_type? (COMMA NAME sql_type?)*
+column_def_list: column_def ("," column_def)*
+
+column_def: NAME sql_type?
 
 join_clause: k_join NAME (k_on expr)?
 

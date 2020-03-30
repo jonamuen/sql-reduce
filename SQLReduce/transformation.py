@@ -72,6 +72,9 @@ class PrettyPrinter(Transformer):
     def subquery_or_expr_list(self, children):
         return self._list(children)
 
+    def column_def_list(self, children):
+        return self._list(children)
+
     def _list(self, children):
         """
         Return string representation of common list like patterns (e.g. list of
@@ -132,18 +135,8 @@ class ColumnNameFinder(Transformer):
         table_name = children[2]
         return set(map(lambda x: (table_name, x), children[4]))
 
-    def column_def_list(self, children):
-        # state 0: interpret next NAME token as column name
-        # state 1: scan until COMMA token
-        state = 0
-        names = set()
-        for c in children:
-            if state == 0 and type(c) == Token and c.type == "NAME":
-                names.add(c.value)
-                state = 1
-            elif type(c) == Token and c.type == "COMMA":
-                state = 0
-        return names
+    def column_def(self, children):
+        return {children[0].value}
 
     def __default__(self, data, children, meta):
         s = set()
@@ -238,26 +231,13 @@ class ColumnRemover(Transformer, AbstractTransformationsIterator):
             return tree
 
     def column_def_list(self, children):
-        # state 0: check next name token for removal
-        # state 1: add all following tokens up to and including COMMA
-        # state 2: skip all following tokens up to and including COMMA
-        state = 0
-        new_children = []
-        for c in children:
-            if state == 0 and type(c) == Token and c.type == "NAME":
-                if c.value in map(lambda x: x[1], self.remove_set):
-                    state = 2
-                else:
-                    new_children.append(c)
-                    state = 1
-            if state == 1:
-                new_children.append(c)
-                if type(c) == Token and c.type == "COMMA":
-                    state = 0
-            if state == 2:
-                if type(c) == Token and c.type == "COMMA":
-                    state = 0
-        return new_children
+        return list(filter(lambda x: x is not None, children))
+
+    def column_def(self, children):
+        if children[0].value in self.remove_set:
+            return None
+        else:
+            return Tree("column_def", children)
 
     def _find_column_names(self, tree: Tree):
         print(self.col_name_finder.transform(tree))

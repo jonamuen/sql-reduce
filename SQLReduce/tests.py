@@ -276,6 +276,7 @@ class ColumnRemoverTest(unittest.TestCase):
         tree = self.parser.parse(stmt)
         self.columnRemover._find_column_names(tree)
 
+
 class PrettyPrinterTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -285,6 +286,11 @@ class PrettyPrinterTest(unittest.TestCase):
     def test_select(self):
         tree = self.parser.parse("SELECT * FROM t0;")
         self.assertEqual("SELECT * FROM t0;", self.printer.transform(tree))
+
+    def test_create_table(self):
+        stmt = "CREATE TABLE t0 (c0 INT, c1 INT);"
+        tree = self.parser.parse(stmt)
+        self.assertEqual(stmt, self.printer.transform(tree))
 
     def test_unexpected(self):
         tree = self.parser.parse("SLCT * FROM t0;")
