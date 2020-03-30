@@ -60,6 +60,30 @@ class PrettyPrinter(Transformer):
         s = s.rstrip()
         return s + ';'
 
+    def column_list(self, children):
+        return self._list(children)
+
+    def values_list(self, children):
+        return self._list(children)
+
+    def value_tuple(self, children):
+        return '(' + self._list(children) + ')'
+
+    def subquery_or_expr_list(self, children):
+        return self._list(children)
+
+    def _list(self, children):
+        """
+        Return string representation of common list like patterns (e.g. list of
+        columns in an INSERT statement).
+        :param children:
+        :return:
+        """
+        s = ""
+        for c in children:
+            s += (c + ', ')
+        return s.rstrip(', ')
+
     def __default__(self, data, children, meta):
         s = ""
         for c in children:
