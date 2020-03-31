@@ -345,6 +345,14 @@ class SimpleColumnRemoverTest(unittest.TestCase):
         print(self.pprinter.transform(result))
         self.assertEqual(self.parser.parse(expected), result)
 
+    def test_update(self):
+        stmt = "UPDATE t0 SET c0=0, c1=1;"
+        tree = self.parser.parse(stmt)
+        self.scrm.remove_index = 0
+        result = self.scrm.transform(tree)
+        expected = self.parser.parse("UPDATE t0 SET c1=1;")
+        self.assertEqual(expected, result)
+
     def test_all_transforms(self):
         stmt = "INSERT INTO t0(c0, c1, c2) VALUES (0, 1, 2), (2, 1, 0);"
         expected = [
@@ -415,6 +423,7 @@ class ReducerTest(unittest.TestCase):
     def test_remove_unneeded_columns(self):
         stmt = "CREATE TABLE t0 (c0 INT, c1 INT);" \
                "INSERT INTO t0 (c0, c1) VALUES (0, 1);" \
+               "UPDATE t0 SET c1 = 0;" \
                "SELECT c0 FROM t0;"
 
         expected = "CREATE TABLE t0 (c0 INT); " \
