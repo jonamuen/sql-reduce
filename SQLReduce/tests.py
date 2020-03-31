@@ -243,6 +243,12 @@ class DiscardTest(unittest.TestCase):
             ])
         self.assertTrue(partial_equivalence(srm.transform(self.tree), expected_partial))
 
+    def test_complexity(self):
+        srm = StatementRemover(max_iterations=4)
+        self.assertGreaterEqual(4, len(list(srm.all_transforms(self.tree))))
+        srm = StatementRemover(max_simultaneous=1)
+        self.assertGreaterEqual(3, len(list(srm.all_transforms(self.tree))))
+
     def test_remove_exhaustive(self):
         """
         Try all combinations except removing nothing and removing everything.

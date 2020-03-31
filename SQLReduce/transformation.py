@@ -101,12 +101,20 @@ class PrettyPrinter(Transformer):
 
 class StatementRemover(Transformer, AbstractTransformationsIterator):
     """
-    Remove specified SQL statements.
+    Remove the statements at the indices indicated by remove_indices.
+
+    :param: remove_indices: list or set of integers. Overwritten by all_transforms
+    :param: max_iterations: all_transforms yields at most this many reductions
+    :param: max_simultaneous: all_transforms removes at most this many statements at once
     """
-    def __init__(self, remove_indices=[]):
+    def __init__(self, remove_indices=None, max_iterations=None, max_simultaneous=None):
         super().__init__()
+        if remove_indices is None:
+            remove_indices = []
         self.i = 0
         self.remove_indices = remove_indices
+        self.max_iterations = max_iterations
+        self.max_simultaneous = max_simultaneous
 
     @v_args(tree=True)
     def sql_stmt(self, tree):
@@ -116,16 +124,35 @@ class StatementRemover(Transformer, AbstractTransformationsIterator):
         return tree
 
     def transform(self, tree: Tree) -> Tree:
+        """
+        Remove the statements at the indices in remove_indices.
+        :param tree:
+        :return:
+        """
         self.i = 0
         return super().transform(tree)
 
     def all_transforms(self, tree):
+        """
+        Yield all possibilities of removing one or more statements at a time.
+        Limited by max_iterations and max_simultaneous.
+        :param tree:
+        :return:
+        """
         num_stmt = len(tree.children)
-        for k in range(1, num_stmt + 1):
+        num_iterations = 0
+        if self.max_simultaneous is None:
+            self.max_simultaneous = num_stmt
+        for k in range(1, self.max_simultaneous + 1):
             for x in combinations(range(num_stmt), k):
-                self.__init__(list(x))
+                if num_iterations == self.max_iterations:
+                    break
+                self.remove_indices = list(x)
                 r = self.transform(tree)
+                num_iterations += 1
                 yield r
+            if num_iterations == self.max_iterations:
+                break
 
 
 class ColumnNameFinder(Transformer):
