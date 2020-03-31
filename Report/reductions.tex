@@ -1,8 +1,14 @@
 \section{Reducer}
 The reducer operates on parse trees of SQL statements. Since certain statements may not be recognized by the parser, the input is first split into single statements, which are then parsed individually to restrict errors to a single statement. A list of reductions is then applied repeatedly until a fixed-point is reached. Further reductions can be easily added by implementing the 
-%TODO: check actual name
-\texttt{AbstractTransformsIterator} class.
+\texttt{AbstractTransformationsIterator} interface.
 
 \subsection{Coarse grained reductions}
 
-\texttt{StatementRemover} is the simplest reduction pass. It removes one or more statements at a time. The iterator \texttt{StatementRemover.all\_transforms} yields all combinations of removing between 1 and $n$ statements from a testcase, starting with combinations that remove a single statement.
+\texttt{StatementRemover} is the simplest reduction pass. It removes one or more statements at a time. The iterator \texttt{StatementRemover.all\_transforms} yields all combinations of removing between 1 and $n$ statements from a testcase, starting with combinations that remove a single statement. This means, that in the worst case, $2^n$ reductions might be attempted, which is only feasible for very small $n$. To limit number of attempted reductions, the \texttt{max\_iterations} parameter can be set. Alternatively, it is also possible to set the \texttt{max\_simultaneous} parameter, which limits the number of statements that are removed simultaneously. This reduces the complexity to $\textnormal{nCr}(n, max\_simultaneous)$.
+
+\subsection{Fine grained reductions}
+\texttt{SimpleColumnRemover} can remove column references from \texttt{CREATE TABLE}, \texttt{INSERT} and \texttt{UPDATE} statements. For instance, the statement \texttt{UPDATE t0 SET c0=1, c1=2;} might be reduced to \texttt{UPDATE t0 SET c0=1;}. \texttt{SimpleColumnRemover} also provides the \texttt{all\_transforms} iterator which yields all reductions that remove a single column reference from the provided parse tree. This iterator might occasionally yield syntactically invalid reductions, for example, it might reduce \texttt{UPDATE t0 SET c0=1;} to \texttt{UPDATE t0 SET;}. However, this is not a major issue as such reductions will be rejected by the verifier.
+A more advanced version might work across statements, for instance removing all references to a column from subsequent statements if a column is removed from a \texttt{CREATE TABLE} statement. However, this is currently not supported.
+
+\subsection{Verifier}
+The \texttt{Verifier} class provides a \texttt{verify} method which determines if a reduced SQL statement still triggers the desired behaviour. \texttt{verify} is used by the reducer to decide for each reduction candidate if it should be kept or discarded. Similar to C-Reduce, the \texttt{Verifier} is initialized with an executable. When \texttt{verify} is called, it writes the reduced statement to a file in the same directory as the provided executable, which is then executed. A return code of 0 indicates that the desired behaviour (e.g. a crash/exception/wrong result etc.) is still triggered, whereas any other return code means that the reduced statement does not trigger the expected behaviour.
