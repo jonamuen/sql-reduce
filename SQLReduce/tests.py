@@ -3,7 +3,7 @@ from itertools import combinations
 from lark import Tree, Token
 from lark import ParseError
 from utils import partial_equivalence
-from transformation import StatementRemover, PrettyPrinter
+from transformation import StatementRemover, PrettyPrinter, ColumnRemover, SimpleColumnRemover
 from pathlib import Path
 from sql_parser import SQLParser
 from reducer import Reducer
@@ -265,6 +265,18 @@ class DiscardTest(unittest.TestCase):
                     i += 1
 
 
+class ColumnRemoverTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.columnRemover = ColumnRemover()
+        cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
+
+    def test_simple(self):
+        stmt = "CREATE TABLE t0 (id INT, name VARCHAR(28)); SELECT id FROM t0;"
+        tree = self.parser.parse(stmt)
+        self.columnRemover._find_column_names(tree)
+
+
 class PrettyPrinterTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -274,6 +286,11 @@ class PrettyPrinterTest(unittest.TestCase):
     def test_select(self):
         tree = self.parser.parse("SELECT * FROM t0;")
         self.assertEqual("SELECT * FROM t0;", self.printer.transform(tree))
+
+    def test_create_table(self):
+        stmt = "CREATE TABLE t0 (c0 INT, c1 INT);"
+        tree = self.parser.parse(stmt)
+        self.assertEqual(stmt, self.printer.transform(tree))
 
     def test_unexpected(self):
         tree = self.parser.parse("SLCT * FROM t0;")
@@ -286,6 +303,93 @@ class PrettyPrinterTest(unittest.TestCase):
     def test_nested(self):
         tree = self.parser.parse("SELECT * FROM (SELECT * FROM t0);")
         self.assertEqual("SELECT * FROM (SELECT * FROM t0);", self.printer.transform(tree))
+
+
+class SimpleColumnRemoverTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.scrm = SimpleColumnRemover(1)
+        cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
+        cls.pprinter = PrettyPrinter()
+
+    def test_simple(self):
+        stmt = "INSERT INTO t0(c0, c1, c2) VALUES (0, 1, 2), (2, 1, 0);"
+        tree = self.parser.parse(stmt)
+        self.scrm.remove_index = 1
+        result = self.scrm.transform(tree)
+        expected = "INSERT INTO t0 (c0, c2) VALUES (0, 2), (2, 0);"
+        print(self.pprinter.transform(result))
+        self.assertEqual(self.parser.parse(expected), result)
+
+    def test_tree_unmodified(self):
+        stmt = "CREATE TABLE t0 (c0 INT);" \
+               "INSERT INTO t0 VALUES (0);" \
+               "UPDATE t0 SET c0=0;"
+        self.scrm.remove_index = -1  # dont remove anything
+        tree = self.parser.parse(stmt)
+        result = self.scrm.transform(tree)
+        self.assertEqual(self.parser.parse(stmt), tree)
+        self.assertEqual(self.parser.parse(stmt), result)
+
+    def test_columns_correctly_counted(self):
+        stmt = "CREATE TABLE t0 (c0 INT);" \
+               "INSERT INTO t0 VALUES (0);" \
+               "UPDATE t0 SET c0=0;"
+        self.scrm.remove_index = -1 # dont remove anything, just count
+        tree = self.parser.parse(stmt)
+        self.scrm.transform(tree)
+        self.assertEqual(3, self.scrm._num_column_refs)
+
+    def test_create_table(self):
+        stmt = "CREATE TABLE t0 (c0 INT, c1 INT);"
+        self.scrm.remove_index = 1
+        tree = self.parser.parse(stmt)
+        result = self.scrm.transform(tree)
+        expected = self.parser.parse("CREATE TABLE t0 (c0 INT);")
+        self.assertEqual(expected, result)
+
+    def test_no_inserts(self):
+        stmt = "SELECT c0, c1 FROM t0;"
+        self.scrm.remove_index = 0
+        result = self.scrm.transform(self.parser.parse(stmt))
+        self.assertEqual(self.parser.parse(stmt), result)
+
+    def test_no_explicit_column_refs(self):
+        stmt = "INSERT INTO t0 VALUES (0, 1, 2);"
+        self.scrm.remove_index = 0
+        result = self.scrm.transform(self.parser.parse(stmt))
+        expected = "INSERT INTO t0 VALUES (1, 2);"
+        self.assertEqual(self.parser.parse(expected), result)
+
+    def test_multiple_inserts(self):
+        stmt = "INSERT INTO t0(c0, c1, c2) VALUES (0, 1, 2), (2, 1, 0);" \
+               "INSERT INTO t1(c0, c1) VALUES (3, 4);"
+        tree = self.parser.parse(stmt)
+        self.scrm.remove_index = 3
+        result = self.scrm.transform(tree)
+        expected = "INSERT INTO t0 (c0, c1, c2) VALUES (0, 1, 2), (2, 1, 0); " \
+                   "INSERT INTO t1 (c1) VALUES (4);"
+        print(self.pprinter.transform(result))
+        self.assertEqual(self.parser.parse(expected), result)
+
+    def test_update(self):
+        stmt = "UPDATE t0 SET c0=0, c1=1;"
+        tree = self.parser.parse(stmt)
+        self.scrm.remove_index = 1
+        result = self.scrm.transform(tree)
+        expected = self.parser.parse("UPDATE t0 SET c0=0;")
+        self.assertEqual(expected, result)
+
+    def test_all_transforms(self):
+        stmt = "INSERT INTO t0(c0, c1, c2) VALUES (0, 1, 2), (2, 1, 0);"
+        expected = [
+            "INSERT INTO t0 (c1, c2) VALUES (1, 2), (1, 0);",
+            "INSERT INTO t0 (c0, c2) VALUES (0, 2), (2, 0);",
+            "INSERT INTO t0 (c0, c1) VALUES (0, 1), (2, 1);"
+        ]
+        results = self.scrm.all_transforms(self.parser.parse(stmt))
+        for exp, res in zip(expected, results):
+            self.assertEqual(self.parser.parse(exp), res)
 
 
 class VerifierTest(unittest.TestCase):
@@ -309,12 +413,13 @@ class VerifierTest(unittest.TestCase):
         verifier = Verifier("test/external_verifier_failure.sh")
         self.assertFalse(verifier.verify([], []))
 
+
 class ReducerTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
         verifier = SQLiteReturnSetVerifier("test/test_reduce.sqlite")
-        cls.reducer = Reducer(parser, verifier, [StatementRemover()])
+        cls.reducer = Reducer(parser, verifier, [StatementRemover(), SimpleColumnRemover()])
         cls.pprinter = PrettyPrinter()
 
     def test_unneeded_inserts_and_tables(self):
@@ -344,11 +449,12 @@ class ReducerTest(unittest.TestCase):
 
     def test_remove_unneeded_columns(self):
         stmt = "CREATE TABLE t0 (c0 INT, c1 INT);" \
-               "INSERT INTO t0 VALUES (0, 1);" \
+               "INSERT INTO t0 (c0, c1) VALUES (0, 1);" \
+               "UPDATE t0 SET c1 = 0;" \
                "SELECT c0 FROM t0;"
 
         expected = "CREATE TABLE t0 (c0 INT); " \
-                   "INSERT INTO t0 VALUES (0); " \
+                   "INSERT INTO t0 (c0) VALUES (0); " \
                    "SELECT c0 FROM t0;"
 
         result = self.reducer.reduce(stmt)
