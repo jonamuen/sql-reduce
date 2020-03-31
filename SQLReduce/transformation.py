@@ -268,9 +268,9 @@ class AliasContext:
 
 class SimpleColumnRemover(AbstractTransformationsIterator):
     """
-    A simple reduction pass that tries to remove single columns from insert and
-    update statements. It doesn't handle aliases and doesn't guarantee
-    syntactically valid results (although most results probably are
+    A simple reduction pass that tries to remove single columns from insert,
+    update and create table statements. It doesn't handle aliases and doesn't
+    guarantee syntactically valid results (although most results probably are
     syntactically valid). The index is counted across all column references.
     Example:
         INSERT INTO t0 VALUES (2, 1); INSERT INTO t1 (c0) VALUES (3);
@@ -291,6 +291,8 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
     def transform(self, tree):
         if type(tree) == Token:
             return tree.__deepcopy__(None)
+        elif tree.data == "create_table_stmt":
+            return self.create_table_stmt(tree)
         elif tree.data == "insert_stmt":
             return self.insert_stmt(tree)
         elif tree.data == "update_stmt":
@@ -301,6 +303,21 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
             return self._default(tree)
         else:
             return self._default(tree)
+
+    def create_table_stmt(self, tree: Tree):
+        """
+        Create table statement grammar:
+        k_create k_table table_name LPAREN column_def_list RPAREN
+        :param tree:
+        :return:
+        """
+        num_columns = len(tree.children[4].children)
+        i = self.remove_index - self._num_column_refs
+        if 0 <= i < num_columns:
+            tree = tree.__deepcopy__(None)
+            del tree.children[4].children[i]
+        self._num_column_refs += num_columns
+        return tree
 
     def insert_stmt(self, tree: Tree):
         """
@@ -333,14 +350,16 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
         :param tree:
         :return:
         """
-        num_columns = len(tree.children[3].children)
+        # an assignment consists of [column_name, EQUAL, VALUE], thus divide by 3
+        assert len(tree.children[3].children) % 3 == 0
+        num_columns = len(tree.children[3].children) // 3
         i = self.remove_index - self._num_column_refs
         if 0 <= i < num_columns:
             tree = tree.__deepcopy__(None)
             assignment_list = tree.children[3]
-            assert len(assignment_list.children) % 3 == 0
             # delete [column_name, EQUAL, VALUE]
             del assignment_list.children[3*i:3*(i+1)]
+        self._num_column_refs += num_columns
         return tree
 
     def all_transforms(self, tree: Tree) -> Iterator[Tree]:

@@ -321,13 +321,40 @@ class SimpleColumnRemoverTest(unittest.TestCase):
         print(self.pprinter.transform(result))
         self.assertEqual(self.parser.parse(expected), result)
 
+    def test_tree_unmodified(self):
+        stmt = "CREATE TABLE t0 (c0 INT);" \
+               "INSERT INTO t0 VALUES (0);" \
+               "UPDATE t0 SET c0=0;"
+        self.scrm.remove_index = -1  # dont remove anything
+        tree = self.parser.parse(stmt)
+        result = self.scrm.transform(tree)
+        self.assertEqual(self.parser.parse(stmt), tree)
+        self.assertEqual(self.parser.parse(stmt), result)
+
+    def test_columns_correctly_counted(self):
+        stmt = "CREATE TABLE t0 (c0 INT);" \
+               "INSERT INTO t0 VALUES (0);" \
+               "UPDATE t0 SET c0=0;"
+        self.scrm.remove_index = -1 # dont remove anything, just count
+        tree = self.parser.parse(stmt)
+        self.scrm.transform(tree)
+        self.assertEqual(3, self.scrm._num_column_refs)
+
+    def test_create_table(self):
+        stmt = "CREATE TABLE t0 (c0 INT, c1 INT);"
+        self.scrm.remove_index = 1
+        tree = self.parser.parse(stmt)
+        result = self.scrm.transform(tree)
+        expected = self.parser.parse("CREATE TABLE t0 (c0 INT);")
+        self.assertEqual(expected, result)
+
     def test_no_inserts(self):
         stmt = "SELECT c0, c1 FROM t0;"
         self.scrm.remove_index = 0
         result = self.scrm.transform(self.parser.parse(stmt))
         self.assertEqual(self.parser.parse(stmt), result)
 
-    def test_no_columns(self):
+    def test_no_explicit_column_refs(self):
         stmt = "INSERT INTO t0 VALUES (0, 1, 2);"
         self.scrm.remove_index = 0
         result = self.scrm.transform(self.parser.parse(stmt))
@@ -348,9 +375,9 @@ class SimpleColumnRemoverTest(unittest.TestCase):
     def test_update(self):
         stmt = "UPDATE t0 SET c0=0, c1=1;"
         tree = self.parser.parse(stmt)
-        self.scrm.remove_index = 0
+        self.scrm.remove_index = 1
         result = self.scrm.transform(tree)
-        expected = self.parser.parse("UPDATE t0 SET c1=1;")
+        expected = self.parser.parse("UPDATE t0 SET c0=0;")
         self.assertEqual(expected, result)
 
     def test_all_transforms(self):
