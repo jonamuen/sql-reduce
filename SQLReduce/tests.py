@@ -3,7 +3,7 @@ from itertools import combinations
 from lark import Tree, Token
 from lark import ParseError
 from utils import partial_equivalence
-from transformation import StatementRemover, PrettyPrinter, ColumnRemover, SimpleColumnRemover
+from transformation import StatementRemover, PrettyPrinter, ColumnRemover, SimpleColumnRemover, ValueMinimizer
 from pathlib import Path
 from sql_parser import SQLParser
 from reducer import Reducer
@@ -54,7 +54,7 @@ class PartialEquivalenceTest(unittest.TestCase):
         partial = Tree('a', [Token('t1', 'test')])
         self.assertFalse(partial_equivalence(full, partial))
 
-
+# TODO: add tests for SELECT expr;
 class ParserTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -396,6 +396,31 @@ class SimpleColumnRemoverTest(unittest.TestCase):
         results = self.scrm.all_transforms(self.parser.parse(stmt))
         for exp, res in zip(expected, results):
             self.assertEqual(self.parser.parse(exp), res)
+
+
+class ValueMinimizerTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
+        cls.minimizer = ValueMinimizer()
+
+    def test_pos_int(self):
+        tree = self.parser.parse("SELECT +9;")
+        result = self.minimizer.transform(tree)
+        expected = self.parser.parse("SELECT 4;")
+        self.assertEqual(expected, result)
+
+    def test_neg_float(self):
+        tree = self.parser.parse("SELECT -1.0;")
+        result = self.minimizer.transform(tree)
+        expected = self.parser.parse("SELECT -0.0;")
+        self.assertEqual(expected, result)
+
+    def test_null(self):
+        tree = self.parser.parse("SELECT NULL;")
+        result = self.minimizer.transform(tree)
+        expected = self.parser.parse("SELECT NULL;")
+        self.assertEqual(expected, result)
 
 
 class VerifierTest(unittest.TestCase):

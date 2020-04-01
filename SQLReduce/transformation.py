@@ -3,6 +3,7 @@ from lark import Tree
 from lark.lexer import Token
 from itertools import combinations
 from typing import Union, Iterator
+import logging
 
 
 class AbstractTransformationsIterator:
@@ -171,6 +172,20 @@ class ColumnNameFinder(Transformer):
             if type(c) == set:
                 s = s | c
         return s
+
+
+class ValueMinimizer(Transformer):
+    def VALUE(self, token: Token):
+        try:
+            num_value = int(token.value)
+            return Token("VALUE", str(num_value // 2))
+        except ValueError:
+            try:
+                num_value = float(token.value)
+                # setting ndigits=0 keeps type float
+                return Token("VALUE", str(round(num_value / 2, ndigits=0)))
+            except ValueError:
+                return token
 
 
 # TODO: think about handling aliases (e.g. manually implement tree traversal and
