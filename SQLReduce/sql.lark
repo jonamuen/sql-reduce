@@ -2,6 +2,7 @@ sql_stmt_list: ";"* (sql_stmt _SEMI+)+
 
 sql_stmt: select_stmt
         | create_table_stmt
+        | create_view_stmt
         | insert_stmt
         | update_stmt
         | delete_stmt
@@ -10,6 +11,8 @@ select_stmt.1: k_select k_distinct? subquery_or_expr_list from_clause? \
                 where_clause? order_by_clause? limit_clause? offset_clause?
 
 create_table_stmt.1: k_create k_table table_name LPAREN column_def_list RPAREN
+
+create_view_stmt: k_create k_view table_name k_as LPAREN subquery_or_expr_as RPAREN
 
 insert_stmt: k_insert k_into table_name (LPAREN column_list RPAREN)? k_values values_list
 
@@ -108,6 +111,7 @@ operator: PLUS | MINUS | STAR | SLASH | EQUAL | GREATER | LESS | k_is | k_or | k
 !k_by: "BY" | "by"
 !k_asc: "ASC" | "asc"
 !k_desc: "DESC" | "desc"
+!k_view: "VIEW" | "view"
 
 PLUS: "+"
 MINUS: "-"
