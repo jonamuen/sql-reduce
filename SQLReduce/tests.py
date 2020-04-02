@@ -3,7 +3,7 @@ from itertools import combinations
 from lark import Tree, Token
 from lark import ParseError
 from utils import partial_equivalence
-from transformation import StatementRemover, PrettyPrinter, ColumnRemover, SimpleColumnRemover, ValueMinimizer
+from transformation import StatementRemover, PrettyPrinter, ColumnRemover, SimpleColumnRemover, ValueMinimizer, ExprSimplifier
 from pathlib import Path
 from sql_parser import SQLParser
 from reducer import Reducer
@@ -396,6 +396,31 @@ class SimpleColumnRemoverTest(unittest.TestCase):
         results = self.scrm.all_transforms(self.parser.parse(stmt))
         for exp, res in zip(expected, results):
             self.assertEqual(self.parser.parse(exp), res)
+
+
+class ExprSimplifierTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
+        cls.simplifier = ExprSimplifier()
+
+    def test_1(self):
+        tree = self.parser.parse("SELECT NOT c0 + c1 * c2 FROM t0;")
+        for x in self.simplifier.all_transforms(tree):
+            print(PrettyPrinter().transform(x))
+        print(self.simplifier._num_reduction_opportunities)
+
+    def test_2(self):
+        tree = self.parser.parse("SELECT NULLIF(c0 + c1, c0 - c1) FROM t0;")
+        for x in self.simplifier.all_transforms(tree):
+            print(PrettyPrinter().transform(x))
+        print(self.simplifier._num_reduction_opportunities)
+
+    def test_3(self):
+        tree = self.parser.parse("SELECT CAST(c0 * c1 AS INT) FROM t0;")
+        for x in self.simplifier.all_transforms(tree):
+            print(PrettyPrinter().transform(x))
+        print(self.simplifier._num_reduction_opportunities)
 
 
 class ValueMinimizerTest(unittest.TestCase):
