@@ -40,13 +40,14 @@ subquery_or_expr_as: subquery_or_expr (k_as NAME)?
 
 subquery_or_expr: LPAREN (select_stmt) RPAREN | expr
 
+// TODO: expr not allowed here
 from_clause: k_from subquery_or_expr_as join_clause*
 
 column_def_list: column_def ("," column_def)*
 
 column_def: NAME sql_type?
 
-join_clause: k_join NAME (k_as NAME)? (k_on expr)?
+join_clause: k_join subquery_or_expr_as (k_on expr)?
 
 where_clause: k_where expr
 
