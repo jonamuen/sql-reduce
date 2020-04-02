@@ -65,7 +65,7 @@ expr_helper: LPAREN expr RPAREN
            | column_name
            | VALUE
            | k_cast LPAREN expr k_as sql_type RPAREN
-           | k_nullif LPAREN expr ("," expr)+ RPAREN
+           | k_nullif LPAREN expr COMMA expr RPAREN
 
 any_word: table_name "." NAME | NAME
 
@@ -100,7 +100,7 @@ operator: PLUS | MINUS | STAR | SLASH | EQUAL | GREATER | LESS | k_is | k_or | k
 !k_or: "OR" | "or"
 !k_offset: "OFFSET" | "offset"
 !k_cast: "CAST" | "cast"
-!k_nullif: "NULLIF" | "nullif"
+!k_nullif: NULLIF
 !k_insert: "INSERT" | "insert"
 !k_into: "INTO" | "into"
 !k_values: "VALUES" | "values"
@@ -124,6 +124,8 @@ LESS: "<"
 
 LPAREN: "("
 RPAREN: ")"
+
+NULLIF.3: /(NULLIF)|(nullif)/
 
 NAME.2: /[a-zA-Z_]/ /[a-zA-Z0-9_]*/
 
