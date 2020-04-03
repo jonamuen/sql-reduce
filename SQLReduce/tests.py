@@ -87,7 +87,7 @@ class ParserTest(unittest.TestCase):
     def test_semi_and_quote_in_str(self):
         tree = self.parser.parse("SELECT ''';' FROM t0;")
         self.assertEqual(1, len(tree.children))
-        self.assertEqual("select_stmt", tree.children[0].children[0].data)
+        self.assertEqual("select_stmt_full", tree.children[0].children[0].data)
 
     def test_unexpected_stmt(self):
         tree = self.parser.parse("SLCT ''';' FROM t0;")
@@ -174,7 +174,7 @@ class ParserTest(unittest.TestCase):
         expected_partial =\
             Tree('sql_stmt_list', [
                 Tree('sql_stmt', [Tree("create_table_stmt", None)]),
-                Tree('sql_stmt', [Tree("select_stmt", None)])])
+                Tree('sql_stmt', [Tree("select_stmt_full", None)])])
         self.assertTrue(partial_equivalence(tree, expected_partial))
 
 
@@ -227,21 +227,15 @@ class DiscardTest(unittest.TestCase):
 
     def test_remove_first(self):
         srm = StatementRemover([0])
-        expected_partial = \
-            Tree("sql_stmt_list", [
-                Tree("sql_stmt", [Tree("select_stmt", None)]),
-                Tree("sql_stmt", [Tree("delete_stmt", None)])
-            ])
-        self.assertTrue(partial_equivalence(srm.transform(self.tree), expected_partial))
+        expected = self.parser.parse("SELECT c0 FROM t0;"
+                                     "DELETE FROM t0 WHERE id=0;")
+        self.assertEqual(expected, srm.transform(self.tree))
 
     def test_remove_last(self):
         srm = StatementRemover([2])
-        expected_partial =\
-            Tree("sql_stmt_list", [
-                Tree("sql_stmt", [Tree("create_table_stmt", None)]),
-                Tree("sql_stmt", [Tree("select_stmt", None)])
-            ])
-        self.assertTrue(partial_equivalence(srm.transform(self.tree), expected_partial))
+        expected = self.parser.parse("CREATE TABLE t0 (id INT);"
+                                     "SELECT c0 FROM t0;")
+        self.assertEqual(expected, srm.transform(self.tree))
 
     def test_complexity(self):
         srm = StatementRemover(max_iterations=4)
@@ -493,15 +487,9 @@ class ReducerTest(unittest.TestCase):
                    "INSERT INTO t0 VALUES (0); " \
                    "SELECT * FROM t0 WHERE id = 0;"
 
-        expected_tree_partial = \
-            Tree('sql_stmt_list', [
-                Tree('sql_stmt', [Tree("create_table_stmt", None)]),
-                Tree('sql_stmt', [None]),
-                Tree('sql_stmt', [Tree("select_stmt", None)])])
         result = self.reducer.reduce(stmt)
         result_str = self.pprinter.transform(result)
         self.assertEqual(expected, result_str)
-        self.assertTrue(partial_equivalence(result, expected_tree_partial))
 
     def test_remove_unneeded_columns(self):
         stmt = "CREATE TABLE t0 (c0 INT, c1 INT);" \

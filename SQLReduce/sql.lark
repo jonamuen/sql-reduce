@@ -1,6 +1,6 @@
 sql_stmt_list: ";"* (sql_stmt _SEMI+)+
 
-sql_stmt: select_stmt
+sql_stmt: select_stmt_full
         | create_table_stmt
         | create_view_stmt
         | insert_stmt
@@ -8,6 +8,8 @@ sql_stmt: select_stmt
         | delete_stmt
 
 // add WITH
+select_stmt_full: (k_with column_name k_as LPAREN select_stmt RPAREN)? select_stmt
+
 select_stmt.1: k_select k_distinct? subquery_or_expr_list from_clause? \
                 where_clause? order_by_clause? limit_clause? offset_clause?
 
@@ -130,6 +132,7 @@ operator: PLUS | MINUS | STAR | SLASH | EQUAL | GREATER | LESS | k_is | k_or | k
 !k_right: "RIGHT" | "right"
 !k_full: "FULL" | "full"
 !k_outer: "OUTER" | "outer"
+!k_with: "WITH" | "with"
 
 PLUS: "+"
 MINUS: "-"
