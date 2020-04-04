@@ -10,6 +10,7 @@ from reducer import Reducer
 from verifier import AbstractVerifier, ExternalVerifier, SQLiteReturnSetVerifier, Verifier
 import logging
 
+logging.basicConfig(level=logging.DEBUG)
 # TODO: add tests for reducer
 # TODO: add tests for verifier
 # TODO: add tests for split_into_stmts
@@ -249,8 +250,6 @@ class DiscardTest(unittest.TestCase):
     def test_complexity(self):
         srm = StatementRemover(max_iterations=4)
         self.assertGreaterEqual(4, len(list(srm.all_transforms(self.tree))))
-        srm = StatementRemover(max_simultaneous=1)
-        self.assertGreaterEqual(3, len(list(srm.all_transforms(self.tree))))
 
     def test_remove_exhaustive(self):
         """

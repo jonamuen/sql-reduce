@@ -3,7 +3,6 @@ from lark import Tree
 from lark.lexer import Token
 from itertools import combinations
 from typing import Union, Iterator
-import logging
 
 
 class AbstractTransformationsIterator:
@@ -59,10 +58,10 @@ class PrettyPrinter(Transformer):
         for c in tree.children:
             s += (c + ' ')
         s = s.rstrip()
-        return s + ';'
+        return s.lstrip() + ';\n'
 
     def sql_stmt_list(self, children):
-        return self._list(children, sep='\n')
+        return self._list(children, '').rstrip('\n')
 
     def column_list(self, children):
         return self._list(children)
@@ -109,16 +108,14 @@ class StatementRemover(Transformer, AbstractTransformationsIterator):
 
     :param: remove_indices: list or set of integers. Overwritten by all_transforms
     :param: max_iterations: all_transforms yields at most this many reductions
-    :param: max_simultaneous: all_transforms removes at most this many statements at once
     """
-    def __init__(self, remove_indices=None, max_iterations=None, max_simultaneous=None):
+    def __init__(self, remove_indices=None, max_iterations=None):
         super().__init__()
         if remove_indices is None:
             remove_indices = []
         self.i = 0
         self.remove_indices = remove_indices
         self.max_iterations = max_iterations
-        self.max_simultaneous = max_simultaneous
 
     @v_args(tree=True)
     def sql_stmt(self, tree):
@@ -138,38 +135,27 @@ class StatementRemover(Transformer, AbstractTransformationsIterator):
 
     def all_transforms(self, tree):
         """
-        Yield all possibilities of removing one or more statements at a time.
-        Limited by max_iterations and max_simultaneous.
+        Yield decreasingly aggressive reductions. Start by splitting the
+        list of statements in half, then proceed recursively on both halves.
+        Yields at most max_iterations reductions.
+        Complexity is at most 2*n calls to self.transform.
         :param tree:
         :return:
         """
         num_stmt = len(tree.children)
         num_iterations = 0
-        if self.max_simultaneous is None:
-            self.max_simultaneous = num_stmt
-        # block_size = num_stmt
-        # while block_size >= 1:
-        #     if num_iterations == self.max_iterations:
-        #         break
-        #     for i in range(num_stmt // block_size):
-        #         if num_iterations == self.max_iterations:
-        #             break
-        #         self.remove_indices = [x for x in range(i * block_size, (i+1) * block_size)]
-        #         r = self.transform(tree)
-        #         num_iterations += 1
-        #         yield r
-        #     block_size = block_size // 2
-
-        for k in range(1, self.max_simultaneous + 1):
-            for x in combinations(range(num_stmt), k):
+        block_size = num_stmt
+        while block_size >= 1:
+            if num_iterations == self.max_iterations:
+                break
+            for i in range(num_stmt // block_size):
                 if num_iterations == self.max_iterations:
                     break
-                self.remove_indices = list(x)
+                self.remove_indices = [x for x in range(i * block_size, (i+1) * block_size)]
                 r = self.transform(tree)
                 num_iterations += 1
                 yield r
-            if num_iterations == self.max_iterations:
-                break
+            block_size = block_size // 2
 
 
 class ColumnNameFinder(Transformer):
