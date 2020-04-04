@@ -147,6 +147,19 @@ class StatementRemover(Transformer, AbstractTransformationsIterator):
         num_iterations = 0
         if self.max_simultaneous is None:
             self.max_simultaneous = num_stmt
+        # block_size = num_stmt
+        # while block_size >= 1:
+        #     if num_iterations == self.max_iterations:
+        #         break
+        #     for i in range(num_stmt // block_size):
+        #         if num_iterations == self.max_iterations:
+        #             break
+        #         self.remove_indices = [x for x in range(i * block_size, (i+1) * block_size)]
+        #         r = self.transform(tree)
+        #         num_iterations += 1
+        #         yield r
+        #     block_size = block_size // 2
+
         for k in range(1, self.max_simultaneous + 1):
             for x in combinations(range(num_stmt), k):
                 if num_iterations == self.max_iterations:
