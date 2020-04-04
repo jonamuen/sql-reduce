@@ -2,6 +2,7 @@ from verifier import AbstractVerifier, SQLiteReturnSetVerifier
 from transformation import AbstractTransformationsIterator, PrettyPrinter, StatementRemover
 from typing import List
 from sql_parser import SQLParser
+import logging
 
 
 class Reducer:
@@ -24,10 +25,12 @@ class Reducer:
         tree = self.parser.parse(stmt)
         best = tree.__deepcopy__(None)
         itr_counter = 0
+        best_length = ''
         while not fixed_point:
             fixed_point = True
             for t in self.transforms:
                 for candidate in t.all_transforms(best):
+                    logging.info(f"Iterations: {itr_counter}, Shortest result: {best_length}")
                     itr_counter += 1
                     stmts_old = list(map(self.pprinter.transform, tree.children))
                     stmts_cand = list(map(self.pprinter.transform, candidate.children))
@@ -35,9 +38,10 @@ class Reducer:
                     stmt_cand = self.pprinter.transform(candidate)
                     if len(stmt_cand) < len(stmt_old) and self.verifier.verify(stmts_old, stmts_cand):
                         fixed_point = False
+                        best_length = len(stmt_cand)
                         best = candidate
                         break
-        print(f"Iterations: {itr_counter}")
+        logging.info(f"Iterations: {itr_counter}, Shortest result: {best_length}")
         return best
 
 

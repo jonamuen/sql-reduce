@@ -4,7 +4,6 @@ from utils import expand_grammar
 import re
 import logging
 
-logging.basicConfig(level=logging.DEBUG)
 
 
 def split_into_stmts(text: str):
