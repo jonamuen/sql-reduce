@@ -67,7 +67,15 @@ class SQLParser(Lark):
         :param start: (ignored)
         :return: A parse tree
         """
-        stmts = split_into_stmts(text)
+
+        # skip comments
+        without_comments = ""
+        for line in text.split('\n'):
+            if line.startswith('--'):
+                pass
+            else:
+                without_comments += line
+        stmts = split_into_stmts(without_comments)
 
         # parse one statment at a time and collect results in trees
         trees = []
