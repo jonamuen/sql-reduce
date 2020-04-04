@@ -74,7 +74,7 @@ class SQLParser(Lark):
             if line.startswith('--'):
                 pass
             else:
-                without_comments += line
+                without_comments += (line + '\n')
         stmts = split_into_stmts(without_comments)
 
         # parse one statment at a time and collect results in trees

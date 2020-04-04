@@ -177,6 +177,14 @@ class ParserTest(unittest.TestCase):
                 Tree('sql_stmt', [Tree("select_stmt_full", None)])])
         self.assertTrue(partial_equivalence(tree, expected_partial))
 
+    def test_multiline(self):
+        stmt = "SELECT id AS c0\nFROM t0;"
+        expected_partial =\
+            Tree('sql_stmt_list', [
+                Tree('sql_stmt', [Tree('select_stmt_full', None)])])
+        tree = self.parser.parse(stmt)
+        self.assertTrue(partial_equivalence(tree, expected_partial))
+
 
 class SQLSmithFuzzTests(unittest.TestCase):
     @classmethod
@@ -207,6 +215,7 @@ class SQLSmithFuzzTests(unittest.TestCase):
                     raise e
         print(f"recognized/passed/total: {recognized}/{passed}/{total}")
         self.assertEqual(total, passed)
+        self.assertEqual(total, recognized)
 
 
 class DiscardTest(unittest.TestCase):
