@@ -456,11 +456,11 @@ class VerifierTest(unittest.TestCase):
         self.assertFalse(verifier.verify([], []))
 
     def test_external_like_c_reduce_success(self):
-        verifier = Verifier("test/external_verifier_success.sh")
+        verifier = Verifier("test/external_verifier_success.sh", "small.sql")
         self.assertTrue(verifier.verify([], []))
 
     def test_external_like_c_reduce_failure(self):
-        verifier = Verifier("test/external_verifier_failure.sh")
+        verifier = Verifier("test/external_verifier_failure.sh", "small.sql")
         self.assertFalse(verifier.verify([], []))
 
 
@@ -483,8 +483,8 @@ class ReducerTest(unittest.TestCase):
 
         # note: whitespace at the end of lines required due to the way the
         # pretty printer formats statements
-        expected = "CREATE TABLE t0 (id INT); " \
-                   "INSERT INTO t0 VALUES (0); " \
+        expected = "CREATE TABLE t0 (id INT);\n" \
+                   "INSERT INTO t0 VALUES (0);\n" \
                    "SELECT * FROM t0 WHERE id = 0;"
 
         result = self.reducer.reduce(stmt)
@@ -497,8 +497,8 @@ class ReducerTest(unittest.TestCase):
                "UPDATE t0 SET c1 = 0;" \
                "SELECT c0 FROM t0;"
 
-        expected = "CREATE TABLE t0 (c0 INT); " \
-                   "INSERT INTO t0 (c0) VALUES (0); " \
+        expected = "CREATE TABLE t0 (c0 INT);\n" \
+                   "INSERT INTO t0 (c0) VALUES (0);\n" \
                    "SELECT c0 FROM t0;"
 
         result = self.reducer.reduce(stmt)

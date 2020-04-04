@@ -88,9 +88,10 @@ class Verifier(AbstractVerifier):
     """
     Implementation for an external verifier that works like c-reduce.
     """
-    def __init__(self, exec_path: Union[str, Path]):
+    def __init__(self, exec_path: Union[str, Path], output_name: str):
         self.exec_path = Path(exec_path)
         self.working_dir = self.exec_path.parent
+        self.output_name = output_name
 
     # TODO: unify interfaces (a = original currently not needed here)
     def verify(self, a: List[str], b: List[str]):
@@ -102,6 +103,6 @@ class Verifier(AbstractVerifier):
         :param b: sql statement(s) provided as list of strings
         :return: Bool
         """
-        with open(self.working_dir / 'small.sql', 'w') as f:
+        with open(self.working_dir / self.output_name, 'w') as f:
             f.writelines(b)
-        return system(f"cd {self.working_dir}; {self.exec_path.absolute()}") == 0
+        return 0 == system(f"cd {self.working_dir}; {self.exec_path.absolute()}")

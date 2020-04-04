@@ -61,6 +61,9 @@ class PrettyPrinter(Transformer):
         s = s.rstrip()
         return s + ';'
 
+    def sql_stmt_list(self, children):
+        return self._list(children, sep='\n')
+
     def column_list(self, children):
         return self._list(children)
 
@@ -76,7 +79,7 @@ class PrettyPrinter(Transformer):
     def column_def_list(self, children):
         return self._list(children)
 
-    def _list(self, children):
+    def _list(self, children, sep=', '):
         """
         Return string representation of common list like patterns (e.g. list of
         columns in an INSERT statement).
@@ -85,8 +88,8 @@ class PrettyPrinter(Transformer):
         """
         s = ""
         for c in children:
-            s += (c + ', ')
-        return s.rstrip(', ')
+            s += (c + sep)
+        return s.rstrip(sep)
 
     def __default__(self, data, children, meta):
         s = ""
