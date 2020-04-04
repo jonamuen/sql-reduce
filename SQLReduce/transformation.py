@@ -308,6 +308,64 @@ class AliasContext:
             return self.resolve_alias(self.aliases[alias_name])
 
 
+class ExprSimplifier(Transformer, AbstractTransformationsIterator):
+    def __init__(self, remove_index=-1):
+        super().__init__()
+        self.remove_index = remove_index
+        self._num_reduction_opportunities = 0
+
+    def expr(self, children):
+        new_children = [c for c in children]
+        remove_list = []
+        offset = 0
+        if children[0].data == "k_not":
+            offset = 1
+            if self.remove_index - self._num_reduction_opportunities == 0:
+                remove_list.append(0)
+            self._num_reduction_opportunities += 1
+        if len(children) > 2:
+            if self.remove_index - self._num_reduction_opportunities == 0:
+                remove_list += [offset+1, offset+2]
+            elif self.remove_index - self._num_reduction_opportunities == 1:
+                new_children[-1:] = new_children[-1].children
+                remove_list += [offset, offset+1]
+            self._num_reduction_opportunities += 2
+        for i in remove_list[::-1]:
+            del new_children[i]
+        return Tree("expr", new_children)
+
+    def expr_helper(self, children):
+        remove_list = []
+        new_children = [c for c in children]
+        if type(children[0]) == Tree:
+            if children[0].data == "k_cast":
+                if self.remove_index - self._num_reduction_opportunities == 0:
+                    remove_list += [0, 3, 4]
+                self._num_reduction_opportunities += 1
+            elif children[0].data == "k_nullif":
+                if self.remove_index - self._num_reduction_opportunities == 0:
+                    remove_list += [0, 3, 4]
+                elif self.remove_index - self._num_reduction_opportunities == 1:
+                    remove_list += [0, 2, 3]
+                self._num_reduction_opportunities += 2
+        for i in remove_list[::-1]:
+            del new_children[i]
+        return Tree("expr_helper", new_children)
+
+    def transform(self, tree):
+        self._num_reduction_opportunities = 0
+        return Transformer.transform(self, tree)
+
+    def all_transforms(self, tree):
+        self.remove_index = 0
+        reduced = self.transform(tree)
+        num_opportunities = self._num_reduction_opportunities
+        yield reduced
+        for i in range(1, num_opportunities):
+            self.remove_index = i
+            yield self.transform(tree)
+
+
 class SimpleColumnRemover(AbstractTransformationsIterator):
     """
     A simple reduction pass that tries to remove single columns from insert,

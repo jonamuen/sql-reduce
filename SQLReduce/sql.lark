@@ -7,6 +7,7 @@ sql_stmt: select_stmt
         | update_stmt
         | delete_stmt
 
+// add WITH
 select_stmt.1: k_select k_distinct? subquery_or_expr_list from_clause? \
                 where_clause? order_by_clause? limit_clause? offset_clause?
 
@@ -24,7 +25,7 @@ column_list: NAME ("," NAME)*
 
 values_list: value_tuple ("," value_tuple)*
 
-value_tuple: "(" VALUE ("," VALUE)* ")"
+value_tuple: "(" expr ("," expr)* ")"
 
 assign_list: column_name EQUAL VALUE ("," column_name EQUAL VALUE)*
 
@@ -36,9 +37,7 @@ ERR.0: /.+?/
 
 subquery_or_expr_list: subquery_or_expr_as ("," subquery_or_expr_as)*
 
-subquery_or_expr_as: subquery_or_expr (k_as NAME)?
-
-subquery_or_expr: LPAREN (select_stmt) RPAREN | expr
+subquery_or_expr_as: expr (k_as NAME)?
 
 // TODO: expr not allowed here
 from_clause: k_from subquery_or_expr_as join_clause*
@@ -47,7 +46,8 @@ column_def_list: column_def ("," column_def)*
 
 column_def: NAME sql_type?
 
-join_clause: k_join subquery_or_expr_as (k_on expr)?
+join_clause: (k_inner | k_left | k_right | k_full k_outer)? k_join \
+                subquery_or_expr_as (k_on expr)?
 
 where_clause: k_where expr
 
@@ -62,17 +62,22 @@ offset_clause: k_offset POS_INT
 expr: k_not? (expr_helper operator expr | expr_helper)
 
 expr_helper: LPAREN expr RPAREN
+           | LPAREN select_stmt RPAREN
            | column_name
            | VALUE
            | k_cast LPAREN expr k_as sql_type RPAREN
-           | k_nullif LPAREN expr ("," expr)+ RPAREN
+           | k_nullif LPAREN expr COMMA expr RPAREN
+           | k_coalesce LPAREN subquery_or_expr_list RPAREN
+           | k_exists LPAREN select_stmt RPAREN
+           | k_case expr? case_list k_end
+
+case_list: k_when expr k_then expr (k_when expr k_then expr)* (k_else expr)?
 
 any_word: table_name "." NAME | NAME
 
 // TODO: fix table names with prefix (e.g main.t0). see 9215.sql
-table_name: NAME
-column_name: table_name "." NAME
-           | NAME
+table_name: (NAME ".")? NAME
+column_name: NAME ("." NAME)? ("." NAME)?
            | STAR
 
 // TODO: check what names are allowed and how values are specified
@@ -100,7 +105,7 @@ operator: PLUS | MINUS | STAR | SLASH | EQUAL | GREATER | LESS | k_is | k_or | k
 !k_or: "OR" | "or"
 !k_offset: "OFFSET" | "offset"
 !k_cast: "CAST" | "cast"
-!k_nullif: "NULLIF" | "nullif"
+!k_nullif: NULLIF
 !k_insert: "INSERT" | "insert"
 !k_into: "INTO" | "into"
 !k_values: "VALUES" | "values"
@@ -113,6 +118,18 @@ operator: PLUS | MINUS | STAR | SLASH | EQUAL | GREATER | LESS | k_is | k_or | k
 !k_asc: "ASC" | "asc"
 !k_desc: "DESC" | "desc"
 !k_view: "VIEW" | "view"
+!k_coalesce: "COALESCE" | "coalesce"
+!k_exists: "EXISTS" | "exists"
+!k_case: "CASE" | "case"
+!k_when: "WHEN" | "when"
+!k_then: "THEN" | "then"
+!k_else: "ELSE" | "else"
+!k_end: "END" | "end"
+!k_inner: "INNER" | "inner"
+!k_left: "LEFT" | "left"
+!k_right: "RIGHT" | "right"
+!k_full: "FULL" | "full"
+!k_outer: "OUTER" | "outer"
 
 PLUS: "+"
 MINUS: "-"
@@ -124,6 +141,8 @@ LESS: "<"
 
 LPAREN: "("
 RPAREN: ")"
+
+NULLIF.3: /(NULLIF)|(nullif)/
 
 NAME.2: /[a-zA-Z_]/ /[a-zA-Z0-9_]*/
 
