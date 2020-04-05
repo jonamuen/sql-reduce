@@ -55,7 +55,8 @@ class PartialEquivalenceTest(unittest.TestCase):
         partial = Tree('a', [Token('t1', 'test')])
         self.assertFalse(partial_equivalence(full, partial))
 
-# TODO: add tests for SELECT expr;
+
+# TODO: add tests for ANY, ALL, MIN, MAX
 class ParserTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -84,6 +85,13 @@ class ParserTest(unittest.TestCase):
     def test_select_with_table_ref(self):
         tree = self.parser.parse("SELECT t0.c0 FROM t0;")
         self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
+
+    def test_select_expr(self):
+        tree = self.parser.parse("SELECT 3+4;")
+        expected_partial = \
+            Tree('sql_stmt_list', [
+                Tree('sql_stmt', [Tree('select_stmt_full', None)])])
+        self.assertTrue(partial_equivalence(tree, expected_partial))
 
     def test_semi_and_quote_in_str(self):
         tree = self.parser.parse("SELECT ''';' FROM t0;")
@@ -185,6 +193,23 @@ class ParserTest(unittest.TestCase):
                 Tree('sql_stmt', [Tree('select_stmt_full', None)])])
         tree = self.parser.parse(stmt)
         self.assertTrue(partial_equivalence(tree, expected_partial))
+
+    def test_reduced(self):
+        stmt0 = "CREATE TABLE IF NOT EXISTS t0 (" \
+               "c0 TIMESTAMP DEFAULT (TIMESTAMP '1970-01-04')," \
+               "c1 INT2," \
+               "c2 INTERVAL NOT NULL  DEFAULT " \
+               "((INTERVAL '325458769 year 2060662154 months 321274645 " \
+               "days 327813599 hours 325431290 minutes -725505005 seconds'))" \
+               "CHECK (true));"
+        tree = self.parser.parse(stmt0)
+        print(tree.pretty())
+        stmt1 = "UPSERT INTO t0 (c0, c2) " \
+                "VALUES(TIMESTAMP '1970-01-24', " \
+                "(INTERVAL '-806173221 year -1414198475 months -756093282 " \
+                "days -1436425578 hours -16965656 minutes 2134816769 seconds'));"
+        tree = self.parser.parse(stmt1)
+        print(tree.pretty())
 
 
 class SQLSmithFuzzTests(unittest.TestCase):

@@ -32,7 +32,6 @@ with open("test.sql", "r") as f:
 process = Popen(['cockroach sql --insecure'], stdout=PIPE, stderr=PIPE, stdin=PIPE, encoding='utf-8', shell=True)
 stdout, stderr = process.communicate(input=sql_content + ';\nexit\n')
 
-print(stderr)
 if 'unordered spans' in stderr:
 	exit(0)
 else:

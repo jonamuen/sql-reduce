@@ -2,6 +2,7 @@ from lark import Transformer, v_args, Discard
 from lark import Tree
 from lark.lexer import Token
 from typing import Iterator
+from named_tree import NamedTree, NamedTreeConstructor
 
 
 class AbstractTransformationsIterator:
@@ -221,7 +222,7 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
             return tree.__deepcopy__(None)
         elif tree.data == "create_table_stmt":
             return self.create_table_stmt(tree)
-        elif tree.data == "insert_stmt":
+        elif tree.data == "insert_stmt" or tree.data == "upsert_stmt":
             return self.insert_stmt(tree)
         elif tree.data == "update_stmt":
             return self.update_stmt(tree)
@@ -239,11 +240,13 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
         :param tree:
         :return:
         """
-        num_columns = len(tree.children[4].children)
+        tree = NamedTreeConstructor().transform(tree)
+        column_defs = tree["column_def_list"][0]
+        num_columns = len(column_defs.children)
         i = self.remove_index - self._num_column_refs
         if 0 <= i < num_columns:
             tree = tree.__deepcopy__(None)
-            del tree.children[4].children[i]
+            del tree["column_def_list"][0].children[i]
         self._num_column_refs += num_columns
         return tree
 
