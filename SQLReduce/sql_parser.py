@@ -1,9 +1,10 @@
+from typing import Iterable
+
 from lark import *
 from transformation import StatementRemover, PrettyPrinter
 from utils import expand_grammar
 import re
 import logging
-
 
 
 def split_into_stmts(text: str):
@@ -94,6 +95,63 @@ class SQLParser(Lark):
         for t in trees:
             assert len(t.children) == 1
         return Tree("sql_stmt_list", [x.children[0] for x in trees])
+
+
+def lex_unrecognized(stmt: str):
+    buf = ''
+    pos = 0
+    while pos < len(stmt):
+        c = stmt[pos]
+        if c in ' \t\n':
+            if len(buf) > 0:
+                yield Token('unknown', buf)
+                buf = ''
+            pos += 1
+            continue
+        elif c == "'":
+            if len(buf) > 0:
+                yield Token('unknown', buf)
+                buf = ''
+            literal, pos = read_string_literal(stmt, pos)
+            yield Token('string', literal)
+        elif c == '(':
+            if len(buf) > 0:
+                yield Token('unknown', buf)
+                buf = ''
+            yield Token('lparen', '(')
+            pos += 1
+        elif c == ')':
+            if len(buf) > 0:
+                yield Token('unknown', buf)
+                buf = ''
+            yield Token('rparen', ')')
+            pos += 1
+        else:
+            buf += c
+            pos += 1
+    if len(buf) > 0:
+        yield Token('unknown', buf)
+
+
+def parse_unrecognized(stream: Iterable[Token]):
+    stack = []
+    for t in stream:
+        if t.type == 'lparen':
+            pass
+
+def read_string_literal(stmt, pos):
+    buf = stmt[pos]
+    pos += 1
+    while pos < len(stmt):
+        if stmt[pos:pos+2] == "''":
+            buf += stmt[pos:pos+2]
+            pos += 2
+        else:
+            buf += stmt[pos]
+            pos += 1
+            if buf[-1] == "'":
+                return buf, pos
+    raise LexError("Unterminated string: {buf}")
 
 
 if __name__ == '__main__':

@@ -5,7 +5,7 @@ from lark import ParseError
 from utils import partial_equivalence
 from transformation import StatementRemover, PrettyPrinter, SimpleColumnRemover, ValueMinimizer, ExprSimplifier
 from pathlib import Path
-from sql_parser import SQLParser
+from sql_parser import SQLParser, lex_unrecognized
 from reducer import Reducer
 from verifier import AbstractVerifier, ExternalVerifier, SQLiteReturnSetVerifier, Verifier
 import logging
@@ -185,6 +185,12 @@ class ParserTest(unittest.TestCase):
                 Tree('sql_stmt', [Tree('select_stmt_full', None)])])
         tree = self.parser.parse(stmt)
         self.assertTrue(partial_equivalence(tree, expected_partial))
+
+
+class UnrecognizedParserTest(unittest.TestCase):
+    def test_1(self):
+        stmt = "UPSERT INTO t1 (c0, c2, c1) VALUES((INTERVAL '551892156 year 832764392 months 1672989131 days -654812564 hours -234333674 minutes 188738307 seconds'), NULL, TIMESTAMP '1970-01-18'), ((INTERVAL '788244231 year 1956814059 months 1822208821 days 1801942109 hours -285134875 minutes 1801942109 seconds'), NULL, TIMESTAMP '1970-01-10'), ((INTERVAL '1959157503 year -1692822432 months 51618894 days 188738307 hours -1249266498 minutes 1956814059 seconds'), NULL, TIMESTAMP '1969-12-12')"
+        print(list(lex_unrecognized(stmt)))
 
 
 class SQLSmithFuzzTests(unittest.TestCase):
