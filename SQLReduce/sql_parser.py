@@ -1,4 +1,4 @@
-from typing import Iterable
+from typing import List
 
 from lark import *
 from transformation import StatementRemover, PrettyPrinter
@@ -126,6 +126,12 @@ def lex_unrecognized(stmt: str):
                 buf = ''
             yield Token('rparen', ')')
             pos += 1
+        elif c == ',':
+            if len(buf) > 0:
+                yield Token('unknown', buf)
+                buf = ''
+            yield Token('comma', ',')
+            pos += 1
         else:
             buf += c
             pos += 1
@@ -133,11 +139,28 @@ def lex_unrecognized(stmt: str):
         yield Token('unknown', buf)
 
 
-def parse_unrecognized(stream: Iterable[Token]):
+def parse_unrecognized(stream: List[Token], start=0):
     stack = []
-    for t in stream:
-        if t.type == 'lparen':
+    pos = start
+    while pos < len(stream):
+        token = stream[pos]
+        if token.type == 'lparen':
+            stack.append(token)
+        elif token.type == 'rparen':
+            children = []
+            t = stack.pop(-1)
+            while type(t) != Token or t.type != 'lparen':
+                children.append(t)
+                t = stack.pop(-1)
+            stack.append(Tree("paren_expr", children))
             pass
+        elif token.type == 'comma':
+            stack.append(token)
+        else:
+            stack.append(token)
+        pos += 1
+    return stack
+
 
 def read_string_literal(stmt, pos):
     buf = stmt[pos]
