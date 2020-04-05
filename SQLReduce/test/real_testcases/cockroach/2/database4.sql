@@ -6,7 +6,7 @@ SET CLUSTER SETTING debug.panic_on_failed_assertions = true;
 SET CLUSTER SETTING diagnostics.reporting.enabled	 = false;
 SET CLUSTER SETTING diagnostics.reporting.send_crash_reports		 = false;
 SET experimental_enable_temp_tables = 'on';
-CREATE TABLE IF NOT EXISTS t1 (c0 INTERVAL DEFAULT ((INTERVAL '-344682294 year -344682294 months 1023355674 days 1023355674 hours -153452671 minutes 1023355674 seconds')), c1 TIMESTAMP, c2 TIMETZ DEFAULT (NULL), CONSTRAINT "primary" PRIMARY KEY (c1, c2, c0 DESC));
+CREATE TABLE IF NOT EXISTS t1 (c0 INTERVAL DEFAULT ((INTERVAL '-344682294 year -344682294 months 1023355674 days 1023355674 hours -153452671 minutes 1023355674 seconds')), c1 TIMESTAMP, c2 TIMESTAMPTZ DEFAULT (NULL), CONSTRAINT "primary" PRIMARY KEY (c1, c2, c0 DESC));
 SET SESSION VECTORIZE=off;
 CREATE UNIQUE INDEX ON t1(c0, c2);
 INSERT INTO t1 (c2) VALUES(NULL), (NULL);
