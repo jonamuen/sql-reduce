@@ -32,35 +32,38 @@ class Reducer:
         itr_counter = 0
         best_length = ''
         cache = dict()
-        while not global_fixed_point:
-            global_fixed_point = True
-            for t in self.transforms:
-                # iterate with a single transform until no more improvements are possible
-                local_fixed_point = False
-                while not local_fixed_point:
-                    local_fixed_point = True
-                    for candidate in t.all_transforms(best):
-                        logging.info(f"Iterations: {itr_counter}, Tr: {t}, Shortest result: {best_length}")
-                        itr_counter += 1
-                        stmts_old = list(map(self.pprinter.transform, tree.children))
-                        stmts_cand = list(map(self.pprinter.transform, candidate.children))
-                        stmt_old = self.pprinter.transform(best)
-                        stmt_cand = self.pprinter.transform(candidate)
-                        h = hash(stmt_cand)
-                        try:
-                            if not cache[h]:
-                                logging.info(f"Cache hit")
-                                continue
-                        except KeyError:
-                            pass
-                        if len(stmt_cand) < len(stmt_old) and self.verifier.verify(stmts_old, stmts_cand):
-                            cache = {h: True}
-                            local_fixed_point = False
-                            global_fixed_point = False
-                            best_length = len(stmt_cand)
-                            best = candidate
-                            break
-                        cache[h] = False
+        try:
+            while not global_fixed_point:
+                global_fixed_point = True
+                for t in self.transforms:
+                    # iterate with a single transform until no more improvements are possible
+                    local_fixed_point = False
+                    while not local_fixed_point:
+                        local_fixed_point = True
+                        for candidate in t.all_transforms(best):
+                            logging.info(f"Iterations: {itr_counter}, Tr: {t}, Shortest result: {best_length}")
+                            itr_counter += 1
+                            stmts_old = list(map(self.pprinter.transform, tree.children))
+                            stmts_cand = list(map(self.pprinter.transform, candidate.children))
+                            stmt_old = self.pprinter.transform(best)
+                            stmt_cand = self.pprinter.transform(candidate)
+                            h = hash(stmt_cand)
+                            try:
+                                if not cache[h]:
+                                    logging.info(f"Cache hit")
+                                    continue
+                            except KeyError:
+                                pass
+                            if len(stmt_cand) < len(stmt_old) and self.verifier.verify(stmts_old, stmts_cand):
+                                cache = {h: True}
+                                local_fixed_point = False
+                                global_fixed_point = False
+                                best_length = len(stmt_cand)
+                                best = candidate
+                                break
+                            cache[h] = False
+        except KeyboardInterrupt:
+            pass
         logging.info(f"Iterations: {itr_counter}, Shortest result: {best_length}")
         return best
 

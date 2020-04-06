@@ -1,6 +1,6 @@
 !unexpected_stmt: (UNKNOWN | STRING | NUM | paren_expr | list_expr | ",")+
 
-!paren_expr: "(" (UNKNOWN | STRING | NUM | paren_expr | list_expr)* ")"
+paren_expr: "(" (UNKNOWN | STRING | NUM | paren_expr | list_expr)* ")"
 
 list_expr.2: "(" list_item ("," list_item)+ ")"
 

@@ -3,7 +3,7 @@ from itertools import combinations
 from lark import Tree, Token, Lark
 from lark import ParseError
 from utils import partial_equivalence
-from transformation import StatementRemover, PrettyPrinter, SimpleColumnRemover, ValueMinimizer, ExprSimplifier
+from transformation import StatementRemover, PrettyPrinter, SimpleColumnRemover, ValueMinimizer, ExprSimplifier, TokenRemover
 from pathlib import Path
 from sql_parser import SQLParser, lex_unrecognized, parse_unrecognized
 from reducer import Reducer
@@ -461,6 +461,20 @@ class ValueMinimizerTest(unittest.TestCase):
         tree = self.parser.parse("SELECT NULL;")
         result = self.minimizer.transform(tree)
         expected = self.parser.parse("SELECT NULL;")
+        self.assertEqual(expected, result)
+
+
+class TokenRemoverTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
+        cls.trm = TokenRemover()
+
+    def test_simple_all_transforms(self):
+        stmt = "CHECK (true);"
+        tree = self.parser.parse(stmt)
+        expected = set(map(self.parser.parse, ["CHECK;", "(true);", ""]))
+        result = set(self.trm.all_transforms(tree))
         self.assertEqual(expected, result)
 
 

@@ -2,10 +2,13 @@ from lark import Transformer, v_args, Discard
 from lark import Tree
 from lark.lexer import Token
 from typing import Iterator
+from itertools import combinations
+from math import comb
+import logging
 
 
 class AbstractTransformationsIterator:
-    def all_transforms(self, tree):
+    def all_transforms(self, tree: Tree) -> Iterator[Tree]:
         raise NotImplementedError
 
 
@@ -44,6 +47,9 @@ class PrettyPrinter(Transformer):
 
     def list_expr(self, children):
         return '(' + self._list(children) + ')'
+
+    def paren_expr(self, children):
+        return '(' + self._list(children, sep=' ') + ')'
 
     def _list(self, children, sep=', '):
         """
@@ -137,6 +143,8 @@ class ValueMinimizer(Transformer):
                 return Token("VALUE", str(round(num_value / 2, ndigits=0)))
             except ValueError:
                 return token
+    def NUMBER(self, token: Token):
+        return self.VALUE(token)
 
 
 class ExprSimplifier(Transformer, AbstractTransformationsIterator):
@@ -359,3 +367,42 @@ class ListItemRemover(AbstractTransformationsIterator):
             for j in range(0, max_lengths[i]):
                 self.__init__((i, j))
                 yield self.transform(tree)
+
+
+class TokenRemover(Transformer, AbstractTransformationsIterator):
+    def __init__(self, remove_indices=tuple()):
+        super().__init__()
+        self.remove_indices = remove_indices
+        self.index = -1
+
+    def __default_token__(self, token):
+        if token.value in '(),;':
+            return token
+        self.index += 1
+        if self.index in self.remove_indices:
+            raise Discard
+        return token
+
+    def __default__(self, data, children, meta):
+        children = list(filter(lambda x: x is not None, children))
+        if len(children) == 0:
+            raise Discard
+        return Tree(data, children, meta)
+
+    def sql_stmt_list(self, children):
+        return Tree('sql_stmt_list', children)
+
+    def all_transforms(self, tree: Tree) -> Iterator[Tree]:
+        max_simult = 2
+        self.__init__()
+        # do one empty pass to determine number of combinations
+        _ = self.transform(tree)
+        num_options = self.index + 1
+        num_combinations = sum([comb(num_options, i) for i in range(1, max_simult+1)])
+        i = 1
+        for k in range(1, max_simult+1):
+            for c in combinations(range(0, num_options), k):
+                logging.info(f"TokenRemover: {i}/{num_combinations}")
+                self.__init__(c)
+                yield self.transform(tree)
+                i += 1

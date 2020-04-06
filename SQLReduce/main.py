@@ -1,7 +1,7 @@
 import argparse
 
 from reducer import Reducer
-from transformation import StatementRemover, SimpleColumnRemover, ExprSimplifier, PrettyPrinter, ListItemRemover
+from transformation import StatementRemover, SimpleColumnRemover, ExprSimplifier, PrettyPrinter, ListItemRemover, TokenRemover
 from verifier import Verifier
 from sql_parser import SQLParser
 from time import time
@@ -19,7 +19,7 @@ def main():
     args = parser.parse_args()
     reducer = Reducer(SQLParser('sql.lark', start="sql_stmt_list", debug=False, parser='lalr'),
                       Verifier(args.verifier, 'test.sql'),
-                      [StatementRemover(), SimpleColumnRemover(), ExprSimplifier(), ListItemRemover()])
+                      [StatementRemover(), SimpleColumnRemover(), ExprSimplifier(), ListItemRemover(), TokenRemover()])
     with open(args.sql) as f:
         stmt = f.read()
 
