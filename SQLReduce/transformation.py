@@ -390,6 +390,8 @@ class TokenRemover(Transformer, AbstractTransformationsIterator):
         children = list(filter(lambda x: x is not None, children))
         if len(children) == 0:
             raise Discard
+        elif children == [Token('LPAREN', '('), Token('RPAREN', ')')]:
+            raise Discard
         return Tree(data, children, meta)
 
     def sql_stmt_list(self, children):

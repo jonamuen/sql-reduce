@@ -502,6 +502,12 @@ class TokenRemoverTest(unittest.TestCase):
         result = set(self.trm.all_transforms(tree))
         self.assertEqual(expected, result)
 
+    def test_constraint(self):
+        tree = self.parser.parse("CREATE TABLE IF NOT EXISTS t0 (c2 INTERVAL) CHECK (true);")
+        expected = self.parser.parse("CREATE TABLE IF NOT EXISTS t0 (c2 INTERVAL);")
+        results = self.trm.all_transforms(tree)
+        self.assertIn(expected, results)
+
 
 class VerifierTest(unittest.TestCase):
     def test_base_class_raises_error(self):

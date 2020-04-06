@@ -15,7 +15,7 @@ select_stmt.1: k_select k_distinct? subquery_or_expr_list from_clause? \
                 where_clause? order_by_clause? limit_clause? offset_clause?
 
 create_table_stmt.1: k_create k_table (k_if k_not k_exists)? table_name\
-                        LPAREN column_def_list RPAREN
+                        LPAREN column_def_list RPAREN constraint?
 
 create_view_stmt: k_create k_view table_name k_as LPAREN subquery_or_expr_as RPAREN
 
