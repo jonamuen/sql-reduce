@@ -1,9 +1,10 @@
+from typing import List
+
 from lark import *
 from transformation import StatementRemover, PrettyPrinter
 from utils import expand_grammar
 import re
 import logging
-
 
 
 def split_into_stmts(text: str):
@@ -13,6 +14,7 @@ def split_into_stmts(text: str):
     """
     # use the following RE to find string literals since they may contain
     # a semicolon that doesn't indicate the end of a SQL statement
+    # TODO: Fix quadratic runtime of this procedure
     string_re = re.compile(r"'([^']|(''))*'")
 
     # store start and end position of all matches
@@ -55,6 +57,9 @@ class SQLParser(Lark):
     def __init__(self, grammar, **options):
         with open(expand_grammar(grammar)) as f:
             super().__init__(f, **options)
+        with open(expand_grammar('unrecognized.lark')) as f:
+            self.unrecognized_stmt_parser = Lark(f, start='unexpected_stmt',
+                                                 debug=True, parser='lalr')
 
     def parse(self, text: str, start=None):
         """
@@ -82,18 +87,127 @@ class SQLParser(Lark):
             try:
                 trees.append(super().parse(s))
             except LarkError as e:
-                logging.log(logging.DEBUG, e)
-                # construct error tree
-                t = Tree("sql_stmt_list",
-                         [Tree("sql_stmt",
-                               [Tree("unexpected_stmt",
-                                     [Token("ERR", s.rstrip(';'))])])])
-                trees.append(t)
+                try:
+                    t = self.unrecognized_stmt_parser.parse(s.rstrip(';'))
+                    trees.append(Tree('sql_stmt_list',
+                                      [Tree('sql_stmt', [t])]))
+                except LarkError as e2:
+                    # warn if statement couldn't be parsed by unexpected stmt parser
+                    logging.log(logging.WARN, e2)
+                    # construct error tree
+                    t = Tree("sql_stmt_list",
+                             [Tree("sql_stmt",
+                                   [Tree("unexpected_stmt",
+                                         [Token("ERR", s.rstrip(';'))])])])
+                    trees.append(t)
 
         # merge sql statements from single statement parse trees into one tree
         for t in trees:
             assert len(t.children) == 1
         return Tree("sql_stmt_list", [x.children[0] for x in trees])
+
+
+def lex_unrecognized(stmt: str):
+    buf = ''
+    pos = 0
+    while pos < len(stmt):
+        c = stmt[pos]
+        if c in ' \t\n':
+            if len(buf) > 0:
+                yield Token('unknown', buf)
+                buf = ''
+            pos += 1
+            continue
+        elif c == "'":
+            if len(buf) > 0:
+                yield Token('unknown', buf)
+                buf = ''
+            literal, pos = read_string_literal(stmt, pos)
+            yield Token('string', literal)
+        elif c == '(':
+            if len(buf) > 0:
+                yield Token('unknown', buf)
+                buf = ''
+            yield Token('lparen', '(')
+            pos += 1
+        elif c == ')':
+            if len(buf) > 0:
+                yield Token('unknown', buf)
+                buf = ''
+            yield Token('rparen', ')')
+            pos += 1
+        elif c == ',':
+            if len(buf) > 0:
+                yield Token('unknown', buf)
+                buf = ''
+            yield Token('comma', ',')
+            pos += 1
+        else:
+            buf += c
+            pos += 1
+    if len(buf) > 0:
+        yield Token('unknown', buf)
+
+
+def parse_unrecognized(stream: List[Token], start=0):
+    stack = []
+    pos = start
+    while pos < len(stream):
+        token = stream[pos]
+        if token.type == 'lparen':
+            stack.append(token)
+        elif token.type == 'rparen':
+            # reduce
+            children = []
+            t = stack.pop(-1)
+            is_list = False
+            while type(t) != Token or t.type != 'lparen':
+                if type(t) == Token and t.type == 'comma':
+                    is_list = True
+                    reduce_list_item(stack)
+                else:
+                    children.append(t)
+                t = stack.pop(-1)
+            if is_list:
+                list_items = []
+                curr_item = Tree('list_item', [])
+                stack.append(Tree('list_expr', children[::-1]))
+            else:
+                stack.append(Tree("paren_expr", children[::-1]))
+        elif token.type == 'comma':
+            stack.append(token)
+        else:
+            stack.append(token)
+        pos += 1
+    return Tree('unrecognized_stmt', stack)
+
+
+def reduce_list_item(stack):
+    t = stack.pop(-1)
+    new_list_item = Tree('list_item', [])
+    while True:
+        if type(t) == Tree and t.data =='list_item' or type(t) == Token and t.type == 'lparen':
+            stack.append(t)
+            new_list_item.children = new_list_item.children[::-1]
+            stack.append(new_list_item)
+            break
+        else:
+            new_list_item.children.append(t)
+        t = stack.pop(-1)
+
+def read_string_literal(stmt, pos):
+    buf = stmt[pos]
+    pos += 1
+    while pos < len(stmt):
+        if stmt[pos:pos+2] == "''":
+            buf += stmt[pos:pos+2]
+            pos += 2
+        else:
+            buf += stmt[pos]
+            pos += 1
+            if buf[-1] == "'":
+                return buf, pos
+    raise LexError("Unterminated string: {buf}")
 
 
 if __name__ == '__main__':

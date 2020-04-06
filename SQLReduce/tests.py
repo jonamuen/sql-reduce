@@ -1,11 +1,11 @@
 import unittest
 from itertools import combinations
-from lark import Tree, Token
+from lark import Tree, Token, Lark
 from lark import ParseError
 from utils import partial_equivalence
-from transformation import StatementRemover, PrettyPrinter, SimpleColumnRemover, ValueMinimizer, ExprSimplifier
+from transformation import StatementRemover, PrettyPrinter, SimpleColumnRemover, ValueMinimizer, ExprSimplifier, TokenRemover
 from pathlib import Path
-from sql_parser import SQLParser
+from sql_parser import SQLParser, lex_unrecognized, parse_unrecognized
 from reducer import Reducer
 from verifier import AbstractVerifier, ExternalVerifier, SQLiteReturnSetVerifier, Verifier
 import logging
@@ -210,6 +210,32 @@ class ParserTest(unittest.TestCase):
                 "days -1436425578 hours -16965656 minutes 2134816769 seconds'));"
         tree = self.parser.parse(stmt1)
         print(tree.pretty())
+
+
+class UnrecognizedParserTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        with open('unrecognized.lark') as f:
+            grammar = f.read()
+        cls.parser = Lark(grammar, start='unexpected_stmt', debug=True, parser='lalr')
+
+    def test_find_list_exprs(self):
+        stmt = "UPSERT INTO main.t1 (c0, c2, c1) VALUES" \
+               "((INTERVAL '551892156 year 832764392 months 1672989131 days -654812564 hours -234333674 minutes 188738307 seconds'), NULL, TIMESTAMP '1970-01-18'), " \
+               "((INTERVAL '788244231 year 1956814059 months 1822208821 days 1801942109 hours -285134875 minutes 1801942109 seconds'), NULL, TIMESTAMP '1970-01-10'), " \
+               "((INTERVAL '1959157503 year -1692822432 months 51618894 days 188738307 hours -1249266498 minutes 1956814059 seconds'), NULL, TIMESTAMP '1969-12-12')"
+        tree = self.parser.parse(stmt)
+        self.assertEqual(4, len(list(tree.find_data('list_expr'))))
+
+    def test_reconstructability(self):
+        stmt = "UPSERT INTO main.t1 (c0, c2, c1) VALUES" \
+               "((INTERVAL '551892156 year 832764392 months 1672989131 days -654812564 hours -234333674 minutes 188738307 seconds'), NULL, TIMESTAMP '1970-01-18'), " \
+               "((INTERVAL '788244231 year 1956814059 months 1822208821 days 1801942109 hours -285134875 minutes 1801942109 seconds'), NULL, TIMESTAMP '1970-01-10'), " \
+               "((INTERVAL '1959157503 year -1692822432 months 51618894 days 188738307 hours -1249266498 minutes 1956814059 seconds'), NULL, TIMESTAMP '1969-12-12')"
+        tree = self.parser.parse(stmt)
+        reconstruction = PrettyPrinter().transform(tree)
+        tree2 = self.parser.parse(reconstruction)
+        self.assertEqual(tree, tree2)
 
 
 class SQLSmithFuzzTests(unittest.TestCase):
@@ -460,6 +486,20 @@ class ValueMinimizerTest(unittest.TestCase):
         tree = self.parser.parse("SELECT NULL;")
         result = self.minimizer.transform(tree)
         expected = self.parser.parse("SELECT NULL;")
+        self.assertEqual(expected, result)
+
+
+class TokenRemoverTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
+        cls.trm = TokenRemover()
+
+    def test_simple_all_transforms(self):
+        stmt = "CHECK (true);"
+        tree = self.parser.parse(stmt)
+        expected = set(map(self.parser.parse, ["CHECK;", "(true);", ""]))
+        result = set(self.trm.all_transforms(tree))
         self.assertEqual(expected, result)
 
 
