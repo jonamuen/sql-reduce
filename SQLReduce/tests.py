@@ -1,6 +1,6 @@
 import unittest
 from itertools import combinations
-from lark import Tree, Token
+from lark import Tree, Token, Lark
 from lark import ParseError
 from utils import partial_equivalence
 from transformation import StatementRemover, PrettyPrinter, SimpleColumnRemover, ValueMinimizer, ExprSimplifier
@@ -188,14 +188,30 @@ class ParserTest(unittest.TestCase):
 
 
 class UnrecognizedParserTest(unittest.TestCase):
-    def test_lex(self):
-        stmt = "UPSERT INTO t1 (c0, c2, c1) VALUES((INTERVAL '551892156 year 832764392 months 1672989131 days -654812564 hours -234333674 minutes 188738307 seconds'), NULL, TIMESTAMP '1970-01-18'), ((INTERVAL '788244231 year 1956814059 months 1822208821 days 1801942109 hours -285134875 minutes 1801942109 seconds'), NULL, TIMESTAMP '1970-01-10'), ((INTERVAL '1959157503 year -1692822432 months 51618894 days 188738307 hours -1249266498 minutes 1956814059 seconds'), NULL, TIMESTAMP '1969-12-12')"
-        print(list(lex_unrecognized(stmt)))
+    @classmethod
+    def setUpClass(cls) -> None:
+        with open('unrecognized.lark') as f:
+            grammar = f.read()
+        cls.parser = Lark(grammar, start='unexpected_stmt', debug=True, parser='lalr')
 
-    def test_parse(self):
-        stmt = "UPSERT INTO t1 (c0, c2, c1) VALUES((INTERVAL '551892156 year 832764392 months 1672989131 days -654812564 hours -234333674 minutes 188738307 seconds'), NULL, TIMESTAMP '1970-01-18'), ((INTERVAL '788244231 year 1956814059 months 1822208821 days 1801942109 hours -285134875 minutes 1801942109 seconds'), NULL, TIMESTAMP '1970-01-10'), ((INTERVAL '1959157503 year -1692822432 months 51618894 days 188738307 hours -1249266498 minutes 1956814059 seconds'), NULL, TIMESTAMP '1969-12-12')"
-        stream = list(lex_unrecognized(stmt))
-        print(parse_unrecognized(stream))
+    def test_find_list_exprs(self):
+        stmt = "UPSERT INTO main.t1 (c0, c2, c1) VALUES" \
+               "((INTERVAL '551892156 year 832764392 months 1672989131 days -654812564 hours -234333674 minutes 188738307 seconds'), NULL, TIMESTAMP '1970-01-18'), " \
+               "((INTERVAL '788244231 year 1956814059 months 1822208821 days 1801942109 hours -285134875 minutes 1801942109 seconds'), NULL, TIMESTAMP '1970-01-10'), " \
+               "((INTERVAL '1959157503 year -1692822432 months 51618894 days 188738307 hours -1249266498 minutes 1956814059 seconds'), NULL, TIMESTAMP '1969-12-12')"
+        tree = self.parser.parse(stmt)
+        self.assertEqual(4, len(list(tree.find_data('list_expr'))))
+
+    def test_reconstructability(self):
+        stmt = "UPSERT INTO main.t1 (c0, c2, c1) VALUES" \
+               "((INTERVAL '551892156 year 832764392 months 1672989131 days -654812564 hours -234333674 minutes 188738307 seconds'), NULL, TIMESTAMP '1970-01-18'), " \
+               "((INTERVAL '788244231 year 1956814059 months 1822208821 days 1801942109 hours -285134875 minutes 1801942109 seconds'), NULL, TIMESTAMP '1970-01-10'), " \
+               "((INTERVAL '1959157503 year -1692822432 months 51618894 days 188738307 hours -1249266498 minutes 1956814059 seconds'), NULL, TIMESTAMP '1969-12-12')"
+        tree = self.parser.parse(stmt)
+        reconstruction = PrettyPrinter().transform(tree)
+        tree2 = self.parser.parse(reconstruction)
+        self.assertEqual(tree, tree2)
+
 
 class SQLSmithFuzzTests(unittest.TestCase):
     @classmethod

@@ -42,6 +42,9 @@ class PrettyPrinter(Transformer):
     def column_def_list(self, children):
         return self._list(children)
 
+    def list_expr(self, children):
+        return '(' + self._list(children) + ')'
+
     def _list(self, children, sep=', '):
         """
         Return string representation of common list like patterns (e.g. list of
@@ -311,3 +314,48 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
         for i in range(1, num_column_refs):
             self.remove_index = i
             yield self.transform(tree)
+
+
+class ListItemRemover(AbstractTransformationsIterator):
+    def __init__(self, remove_index=(0, 0)):
+        self.remove_index = remove_index
+        self.stmt_index = -1
+        self.list_expr_max_length = []
+
+    def _default(self, tree):
+        return Tree(tree.data, list(map(self.transform, tree.children)))
+
+    def transform(self, tree):
+        if type(tree) == Token:
+            return tree.__deepcopy__(None)
+        elif tree.data == 'unexpected_stmt':
+            return self.unexpected_stmt(tree)
+        elif tree.data == 'list_expr':
+            return self.list_expr(tree)
+        else:
+            return self._default(tree)
+
+    def unexpected_stmt(self, tree):
+        self.list_expr_max_length.append(0)
+        self.stmt_index += 1
+        return self._default(tree)
+
+    def list_expr(self, tree):
+        self.list_expr_max_length[-1] = max(self.list_expr_max_length[-1], len(tree.children))
+        if self.stmt_index == self.remove_index[0]:
+            if self.remove_index[1] < len(tree.children):
+                tree = tree.__deepcopy__(None)
+                print(f"deleting: {tree.children[self.remove_index[1]]}")
+                del tree.children[self.remove_index[1]]
+        return tree
+
+    def all_transforms(self, tree: Tree) -> Iterator[Tree]:
+        self.__init__()
+        reduced = self.transform(tree)
+        yield reduced
+        num_stmts = self.stmt_index + 1
+        max_lengths = [x for x in self.list_expr_max_length]
+        for i in range(0, num_stmts):
+            for j in range(0, max_lengths[i]):
+                self.__init__((i, j))
+                yield self.transform(tree)
