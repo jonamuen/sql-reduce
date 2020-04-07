@@ -25,9 +25,9 @@ def main():
 
     reduction = reducer.reduce(stmt)
     res = PrettyPrinter().transform(reduction)
-    with open('reduced.sql') as f:
-        f.write(res)
     print(res)
+    with open('reduced.sql', 'w') as f:
+        f.write(res)
     t1 = time()
     logging.info(f"Overall time: {t1-t0}")
 

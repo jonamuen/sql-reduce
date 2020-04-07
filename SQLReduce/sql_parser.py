@@ -83,10 +83,12 @@ class SQLParser(Lark):
 
         # parse one statment at a time and collect results in trees
         trees = []
+        num_parse_errors = 0
         for s in stmts:
             try:
                 trees.append(super().parse(s))
             except LarkError as e:
+                num_parse_errors += 1
                 logging.info(e)
                 try:
                     t = self.unrecognized_stmt_parser.parse(s.rstrip(';'))
@@ -103,6 +105,7 @@ class SQLParser(Lark):
                     trees.append(t)
 
         # merge sql statements from single statement parse trees into one tree
+        logging.warning(f"{num_parse_errors}/{len(trees)} stmts not fully parsed. This isn't necessarily an issue, as the reducer can operate on partial parses.")
         for t in trees:
             assert len(t.children) == 1
         return Tree("sql_stmt_list", [x.children[0] for x in trees])
