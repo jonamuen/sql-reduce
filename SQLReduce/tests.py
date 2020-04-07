@@ -508,6 +508,18 @@ class TokenRemoverTest(unittest.TestCase):
         results = self.trm.all_transforms(tree)
         self.assertIn(expected, results)
 
+    def test_non_cosecutive_tokens(self):
+        tree = self.parser.parse("CREATE TABLE IF NOT EXISTS t0 (c2 INTERVAL) CHECK (true);")
+        expected = "CREATE TABLE NOT t0 (c2 INTERVAL) CHECK (true);"
+        results = map(PrettyPrinter().transform, self.trm.all_transforms(tree))
+        self.assertIn(expected, results)
+
+    def test_consecutive_tokens(self):
+        tree = self.parser.parse("CREATE TABLE IF NOT EXISTS t0 (c2 INTERVAL) CHECK (true);")
+        expected = self.parser.parse("CREATE TABLE t0 (c2 INTERVAL) CHECK (true);")
+        results = self.trm.all_transforms(tree)
+        self.assertIn(expected, results)
+
     def test_remove_column_ref_parseable(self):
         stmt = "UPSERT INTO t0 (c2) VALUES (TIMESTAMP 'year');"
         tree = self.parser.parse(stmt)

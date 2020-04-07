@@ -417,15 +417,33 @@ class TokenRemover(Transformer, AbstractTransformationsIterator):
 
     def all_transforms(self, tree: Tree) -> Iterator[Tree]:
         max_simult = 2
+        max_consec = 3
         self.__init__()
         # do one empty pass to determine number of combinations
         _ = self.transform(tree)
-        num_combinations = sum(map(lambda x: sum([comb(x, i) for i in range(1, max_simult+1)]), self.num_options_per_stmt))
+        # yield transforms with consecutive tokens removed first
+        # this will cause some duplicates to be yielded if the lower loop is reached
+        # however, these duplicates are caught by the caching functionality of
+        # the reducer and thus aren't an issue
+        num_combinations = sum(
+            map(lambda x: sum([x - i + 1 for i in range(1, max_consec + 1)]),
+                self.num_options_per_stmt))
+        progress = 1
+        for num_consec in range(1, max_consec + 1):
+            for i, num_options in enumerate(self.num_options_per_stmt):
+                for j in range(num_options - num_consec + 1):
+                    logging.info(f"TokenRemover (consecutive): {progress}/{num_combinations}")
+                    self.__init__([(i, x) for x in range(j, j + num_consec)])
+                    yield self.transform(tree)
+                    progress += 1
+        num_combinations = sum(map(lambda x: sum([comb(x, i) for i in range(2, max_simult+1)]), self.num_options_per_stmt))
         progress = 1
         for i, j in enumerate(self.num_options_per_stmt):
-            for k in range(1, max_simult+1):
+            # start with removing 2 tokens at once since the cases with just one
+            # have been yielded already
+            for k in range(2, max_simult+1):
                 for c in combinations(range(0, j), k):
-                    logging.info(f"TokenRemover: {progress}/{num_combinations}")
+                    logging.info(f"TokenRemover (non-consecutive): {progress}/{num_combinations}")
                     self.__init__([(i, x) for x in c])
                     yield self.transform(tree)
                     progress += 1
