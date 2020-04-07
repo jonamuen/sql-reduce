@@ -76,7 +76,7 @@ class PrettyPrinter(Transformer):
         return s.rstrip()
 
 
-class StatementRemover(Transformer, AbstractTransformationsIterator):
+class StatementRemover(AbstractTransformationsIterator):
     """
     Remove the statements at the indices indicated by remove_indices.
 
@@ -84,19 +84,10 @@ class StatementRemover(Transformer, AbstractTransformationsIterator):
     :param: max_iterations: all_transforms yields at most this many reductions
     """
     def __init__(self, remove_indices=None, max_iterations=None):
-        super().__init__()
         if remove_indices is None:
             remove_indices = []
-        self.i = 0
         self.remove_indices = remove_indices
         self.max_iterations = max_iterations
-
-    @v_args(tree=True)
-    def sql_stmt(self, tree):
-        self.i += 1
-        if self.i - 1 in self.remove_indices:
-            raise Discard()
-        return tree
 
     def transform(self, tree: Tree) -> Tree:
         """
@@ -104,8 +95,17 @@ class StatementRemover(Transformer, AbstractTransformationsIterator):
         :param tree:
         :return:
         """
-        self.i = 0
-        return super().transform(tree)
+        assert tree.data == 'sql_stmt_list'
+        self.remove_indices.sort()
+        new_children = []
+        i = 0  # index into self.remove_indices
+        # iterate over children, only copying those that remain
+        for j, c in enumerate(tree.children):
+            if i < len(self.remove_indices) and j == self.remove_indices[i]:
+                i += 1
+            else:
+                new_children.append(c.__deepcopy__(None))
+        return Tree('sql_stmt_list', new_children, tree.meta)
 
     def all_transforms(self, tree):
         """
