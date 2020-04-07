@@ -68,10 +68,10 @@ class PrettyPrinter(Transformer):
         s = ""
         for c in children:
             # no space before ";", ")", ","
-            if c == ";" or c == ")" or c == ",":
+            if c == ";" or c == ")" or c == "," or c == ".":
                 s = s.rstrip()
             s += (c + " ")
-            if c == "(":
+            if c == "(" or c == "::" or c == ".":
                 s = s.rstrip()
         return s.rstrip()
 

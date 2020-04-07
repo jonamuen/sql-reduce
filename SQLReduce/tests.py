@@ -366,6 +366,28 @@ class PrettyPrinterTest(unittest.TestCase):
         tree = self.parser.parse("SELECT * FROM (SELECT * FROM t0);")
         self.assertEqual("SELECT * FROM (SELECT * FROM t0);", self.printer.transform(tree))
 
+    def test_fully_qualified_column_name(self):
+        stmt = "SELECT main.t0.c0 FROM main.t0;"
+        tree = self.parser.parse(stmt)
+        self.assertEqual(stmt, self.printer.transform(tree))
+
+    def test_reduced2(self):
+        stmt0 = "CREATE TABLE IF NOT EXISTS t1 (" \
+                "c0 INTERVAL DEFAULT ((INTERVAL '-344682294 year -344682294 months 1023355674 days 1023355674 hours -153452671 minutes 1023355674 seconds')), " \
+                "c1 TIMESTAMP, " \
+                "c2 TIMESTAMPTZ DEFAULT (NULL), " \
+                "CONSTRAINT \"primary\" PRIMARY KEY (c1, c2, c0 DESC));"
+        tree = self.parser.parse(stmt0)
+        self.assertEqual(tree, self.parser.parse(self.printer.transform(tree)))
+        stmt1 = "SELECT MIN (agg0) FROM (" \
+                "SELECT MIN ('') as agg0 FROM t1 WHERE ((((-9223372036854775808) ::TIMESTAMP)) != (t1.c1)) " \
+                "UNION ALL SELECT MIN ('') as agg0 FROM t1 WHERE (NOT (((((-9223372036854775808) ::TIMESTAMP)) != (t1.c1)))) " \
+                "UNION ALL SELECT ALL MIN ('') as agg0 FROM t1 WHERE ((((((-9223372036854775808) ::TIMESTAMP)) != (t1.c1))) IS NULL));"
+        tree = self.parser.parse(stmt1)
+        print(stmt1)
+        print(self.printer.transform(tree))
+        self.assertEqual(tree, self.parser.parse(self.printer.transform(tree)))
+
 
 class SimpleColumnRemoverTest(unittest.TestCase):
     @classmethod

@@ -65,7 +65,7 @@ limit_clause: k_limit POS_INT
 offset_clause: k_offset POS_INT
 
 // expr_helper resolves shift/reduce conflicts by forcing right associativity
-expr: k_not? (expr_helper operator expr | expr_helper | expr_helper "::" sql_type)
+expr: k_not? (expr_helper operator expr | expr_helper | expr_helper DOUBLECOL sql_type)
 
 expr_helper: LPAREN expr RPAREN
            | LPAREN select_stmt_helper RPAREN
@@ -82,10 +82,8 @@ expr_helper: LPAREN expr RPAREN
 
 case_list: k_when expr k_then expr (k_when expr k_then expr)* (k_else expr)?
 
-any_word: table_name "." NAME | NAME
-
-table_name: (NAME ".")? NAME
-column_name: NAME ("." NAME)? ("." NAME)?
+table_name: (NAME DOT)? NAME
+column_name: NAME (DOT NAME)? (DOT NAME)?
            | STAR
 
 sql_type: NAME ("("VALUE ")")? (k_not VALUE)? (k_default default_expr)?
@@ -160,6 +158,8 @@ EQUAL: "="
 GREATER: ">"
 LESS: "<"
 NEQ: "!="
+DOUBLECOL: "::"
+DOT: "."
 
 LPAREN: "("
 RPAREN: ")"
