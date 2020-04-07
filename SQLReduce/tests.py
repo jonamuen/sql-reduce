@@ -194,7 +194,7 @@ class ParserTest(unittest.TestCase):
         tree = self.parser.parse(stmt)
         self.assertTrue(partial_equivalence(tree, expected_partial))
 
-    def test_reduced(self):
+    def test_reduced_1(self):
         stmt0 = "CREATE TABLE IF NOT EXISTS t0 (" \
                "c0 TIMESTAMP DEFAULT (TIMESTAMP '1970-01-04')," \
                "c1 INT2," \
@@ -203,13 +203,28 @@ class ParserTest(unittest.TestCase):
                "days 327813599 hours 325431290 minutes -725505005 seconds'))" \
                "CHECK (true));"
         tree = self.parser.parse(stmt0)
-        print(tree.pretty())
+        self.assertEqual(0, len(list(tree.find_data('unexpected_stmt'))))
         stmt1 = "UPSERT INTO t0 (c0, c2) " \
                 "VALUES(TIMESTAMP '1970-01-24', " \
                 "(INTERVAL '-806173221 year -1414198475 months -756093282 " \
                 "days -1436425578 hours -16965656 minutes 2134816769 seconds'));"
         tree = self.parser.parse(stmt1)
-        print(tree.pretty())
+        self.assertEqual(0, len(list(tree.find_data('unexpected_stmt'))))
+
+    def test_reduced_2(self):
+        stmt0 = "CREATE TABLE IF NOT EXISTS t1 (" \
+                "c0 INTERVAL DEFAULT ((INTERVAL '-344682294 year -344682294 months 1023355674 days 1023355674 hours -153452671 minutes 1023355674 seconds')), " \
+                "c1 TIMESTAMP, " \
+                "c2 TIMESTAMPTZ DEFAULT (NULL), " \
+                "CONSTRAINT \"primary\" PRIMARY KEY (c1, c2, c0 DESC));"
+        tree = self.parser.parse(stmt0)
+        self.assertEqual(7, len(list(tree.find_data('list_item'))))
+        stmt1 = "SELECT MIN (agg0) FROM (" \
+                "SELECT MIN ('') as agg0 FROM t1 WHERE ((((-9223372036854775808) ::TIMESTAMP)) != (t1.c1)) " \
+                "UNION ALL SELECT MIN ('') as agg0 FROM t1 WHERE (NOT (((((-9223372036854775808) ::TIMESTAMP)) != (t1.c1)))) " \
+                "UNION ALL SELECT ALL MIN ('') as agg0 FROM t1 WHERE ((((((-9223372036854775808) ::TIMESTAMP)) != (t1.c1))) IS NULL));"
+        tree = self.parser.parse(stmt1)
+        self.assertEqual(0, len(list(tree.find_data('unexpected_stmt'))))
 
 
 class UnrecognizedParserTest(unittest.TestCase):

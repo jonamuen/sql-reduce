@@ -9,8 +9,9 @@ sql_stmt: select_stmt_full
         | delete_stmt
 
 // add WITH
-select_stmt_full: (k_with column_name k_as LPAREN select_stmt RPAREN)? select_stmt
+select_stmt_full: (k_with column_name k_as LPAREN select_stmt_helper RPAREN)? select_stmt_helper
 
+select_stmt_helper: select_stmt_helper (k_union | k_intersect | k_except) k_all? select_stmt | select_stmt
 select_stmt.1: k_select k_distinct? subquery_or_expr_list from_clause? \
                 where_clause? order_by_clause? limit_clause? offset_clause?
 
@@ -43,7 +44,7 @@ ERR.0: /.+?/
 
 subquery_or_expr_list: subquery_or_expr_as ("," subquery_or_expr_as)*
 
-subquery_or_expr_as: expr (k_as NAME)?
+subquery_or_expr_as: k_all? expr (k_as NAME)?
 
 // TODO: expr not allowed here
 from_clause: k_from subquery_or_expr_as join_clause*
@@ -64,20 +65,19 @@ limit_clause: k_limit POS_INT
 offset_clause: k_offset POS_INT
 
 // expr_helper resolves shift/reduce conflicts by forcing right associativity
-expr: k_not? (expr_helper operator expr | expr_helper)
+expr: k_not? (expr_helper operator expr | expr_helper | expr_helper "::" sql_type)
 
 expr_helper: LPAREN expr RPAREN
-           | LPAREN select_stmt RPAREN
+           | LPAREN select_stmt_helper RPAREN
            | column_name
            | (sql_type)? VALUE
            | k_cast LPAREN expr k_as sql_type RPAREN
            | k_nullif LPAREN expr COMMA expr RPAREN
            | k_coalesce LPAREN subquery_or_expr_list RPAREN
-           | k_exists LPAREN select_stmt RPAREN
+           | k_exists LPAREN select_stmt_helper RPAREN
            | k_case expr? case_list k_end
            | k_min LPAREN expr RPAREN
            | k_max LPAREN expr RPAREN
-           | k_all LPAREN expr RPAREN
            | k_any LPAREN expr RPAREN
 
 case_list: k_when expr k_then expr (k_when expr k_then expr)* (k_else expr)?
@@ -95,8 +95,8 @@ default_expr: "(" default_expr ")" | NAME? VALUE
 constraint: k_check expr
 
 // TODO: add more operators
-operator: PLUS | MINUS | STAR | SLASH | EQUAL | GREATER | LESS | k_is | k_or
-        | k_and | k_union | k_except | k_intersect
+operator: PLUS | MINUS | STAR | SLASH | EQUAL | NEQ | GREATER | LESS | k_is
+        | k_or | k_and
 
 // force anonymous literals to appear in tree with ! prefix
 !k_select: "SELECT" | "select"
@@ -159,6 +159,7 @@ SLASH: "/"
 EQUAL: "="
 GREATER: ">"
 LESS: "<"
+NEQ: "!="
 
 LPAREN: "("
 RPAREN: ")"
@@ -168,6 +169,7 @@ NULLIF.3: /(NULLIF)|(nullif)/
 NAME.2: /[a-zA-Z_]/ /[a-zA-Z0-9_]*/
 
 VALUE.2: /'([^']|'')*'/
+       | /"([^"]|"")*"/
        | ("+"|"-")? /[0-9]+/ /(\.[0-9]*)/?
        | "NULL"
        | "null"
