@@ -373,26 +373,44 @@ class ListItemRemover(AbstractTransformationsIterator):
 
 
 class TokenRemover(Transformer, AbstractTransformationsIterator):
-    def __init__(self, remove_indices=tuple()):
+    def __init__(self, remove_indices=None):
         super().__init__()
+        if remove_indices is None:
+            remove_indices = []
         self.remove_indices = remove_indices
-        self.index = -1
+        self.token_index = 0
+        self.stmt_index = 0
+        self.num_options_per_stmt = []
 
     def __default_token__(self, token):
         if token.value in '(),;':
             return token
-        self.index += 1
-        if self.index in self.remove_indices:
+        self.token_index += 1
+        if (self.stmt_index, self.token_index - 1) in self.remove_indices:
             raise Discard
         return token
 
     def __default__(self, data, children, meta):
-        children = list(filter(lambda x: x is not None, children))
+        # delete '(' directly followed by ')', traverse in reverse order to
+        # avoid index errors after deletion
+        empty_paren_indices = []  # store indices of empty parentheses for removal
+        for i in range(len(children) - 1):
+            if type(children[i]) == Token and type(children[i+1]) == Token:
+                if children[i].value == '(' and children[i+1].value == ')':
+                    empty_paren_indices.append(i)
+                    empty_paren_indices.append(i+1)
+        for i in empty_paren_indices[::-1]:
+            del children[i]
         if len(children) == 0:
             raise Discard
-        elif children == [Token('LPAREN', '('), Token('RPAREN', ')')]:
-            raise Discard
         return Tree(data, children, meta)
+
+    @v_args(tree=True)
+    def sql_stmt(self, tree):
+        self.num_options_per_stmt.append(self.token_index)
+        self.token_index = 0
+        self.stmt_index += 1
+        return self.__default__(tree.data, tree.children, tree.meta)
 
     def sql_stmt_list(self, children):
         return Tree('sql_stmt_list', children)
@@ -402,12 +420,12 @@ class TokenRemover(Transformer, AbstractTransformationsIterator):
         self.__init__()
         # do one empty pass to determine number of combinations
         _ = self.transform(tree)
-        num_options = self.index + 1
-        num_combinations = sum([comb(num_options, i) for i in range(1, max_simult+1)])
-        i = 1
-        for k in range(1, max_simult+1):
-            for c in combinations(range(0, num_options), k):
-                logging.info(f"TokenRemover: {i}/{num_combinations}")
-                self.__init__(c)
-                yield self.transform(tree)
-                i += 1
+        num_combinations = sum(map(lambda x: sum([comb(x, i) for i in range(1, max_simult+1)]), self.num_options_per_stmt))
+        progress = 1
+        for i, j in enumerate(self.num_options_per_stmt):
+            for k in range(1, max_simult+1):
+                for c in combinations(range(0, j), k):
+                    logging.info(f"TokenRemover: {progress}/{num_combinations}")
+                    self.__init__([(i, x) for x in c])
+                    yield self.transform(tree)
+                    progress += 1

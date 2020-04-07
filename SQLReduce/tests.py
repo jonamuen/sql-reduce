@@ -508,6 +508,20 @@ class TokenRemoverTest(unittest.TestCase):
         results = self.trm.all_transforms(tree)
         self.assertIn(expected, results)
 
+    def test_remove_column_ref_parseable(self):
+        stmt = "UPSERT INTO t0 (c2) VALUES (TIMESTAMP 'year');"
+        tree = self.parser.parse(stmt)
+        expected = self.parser.parse("UPSERT INTO t0 VALUES (TIMESTAMP 'year');")
+        results = self.trm.all_transforms(tree)
+        self.assertIn(expected, results)
+
+    def test_remove_column_ref_non_parseable(self):
+        stmt = "UPSRT INTO t0 (c2) VALUES (TIMESTAMP 'year');"
+        tree = self.parser.parse(stmt)
+        expected = self.parser.parse("UPSRT INTO t0 VALUES (TIMESTAMP 'year');")
+        results = self.trm.all_transforms(tree)
+        self.assertIn(expected, results)
+
 
 class VerifierTest(unittest.TestCase):
     def test_base_class_raises_error(self):
