@@ -5,7 +5,7 @@ from lark import ParseError
 from utils import partial_equivalence
 from transformation import StatementRemover, PrettyPrinter, SimpleColumnRemover, ValueMinimizer, ExprSimplifier, TokenRemover
 from pathlib import Path
-from sql_parser import SQLParser, lex_unrecognized, parse_unrecognized
+from sql_parser import SQLParser
 from reducer import Reducer
 from verifier import AbstractVerifier, ExternalVerifier, SQLiteReturnSetVerifier, Verifier
 import logging
