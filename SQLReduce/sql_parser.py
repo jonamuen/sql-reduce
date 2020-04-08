@@ -12,40 +12,24 @@ def split_into_stmts(text: str):
     Split a string of multiple sql statements into a list of single statements.
     :param text:
     """
-    # use the following RE to find string literals since they may contain
-    # a semicolon that doesn't indicate the end of a SQL statement
-    # TODO: Fix quadratic runtime of this procedure
-    string_re = re.compile(r"'([^']|(''))*'")
-
-    # store start and end position of all matches
-    match_ranges = []
-    m = string_re.search(text)
-    while m:
-        match_ranges.append(m.span())
-        s = m.end()
-        m = string_re.search(text, s)
-
-    # split text into single sql statements
-    stmts = []
-    begin_next = 0  # holds the index where the next sql statement begins
-    for i, c in enumerate(text):
-        if c == ';':
-            # in_str is set to True if the semicolon is inside a str
-            in_str = False
-
-            for begin, end in match_ranges:
-                if end <= i:
-                    continue
-                if begin > i:
-                    continue
+    buf = ''
+    in_str = False
+    for c in text:
+        buf += c
+        if not in_str:
+            if c == "'":
                 in_str = True
-                break
-            if not in_str:
-                stmt = text[begin_next: i + 1].lstrip().rstrip()
-                if len(stmt) > 1:
-                    stmts.append(stmt)
-                begin_next = i + 1
-    return stmts
+            elif c == ';':
+                yield buf
+                buf = ''
+        else:
+            if c == "'":
+                in_str = False
+    buf = buf.strip(' \n\t')
+    if len(buf) > 0:
+        if buf[-1] != ';':
+            buf += ';'
+        yield buf
 
 
 class SQLParser(Lark):
