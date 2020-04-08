@@ -58,7 +58,7 @@ join_clause: (k_inner | k_left | k_right | k_full k_outer)? k_join \
 
 where_clause: k_where expr
 
-order_by_clause: k_order k_by column_name (k_asc | k_desc)
+order_by_clause: k_order k_by column_name (k_asc | k_desc)?
 
 limit_clause: k_limit POS_INT
 

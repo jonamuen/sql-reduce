@@ -121,10 +121,13 @@ class ParserTest(unittest.TestCase):
     def test_order_by(self):
         tree = self.parser.parse("SELECT c0 FROM t0 ORDER BY c0")
         self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
+        self.assertEqual(1, len(list(tree.find_data("order_by_clause"))))
         tree = self.parser.parse("SELECT c0 FROM t0 ORDER BY c0 ASC")
         self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
-        tree = self.parser.parse("SELECT c0 FROM t0 ORDER BY c0 DESC")
+        self.assertEqual(1, len(list(tree.find_data("order_by_clause"))))
+        tree = self.parser.parse("SELECT c0 FROM t0 ORDER BY c0 DESC;")
         self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
+        self.assertEqual(1, len(list(tree.find_data("order_by_clause"))))
 
     def test_insert(self):
         tree = self.parser.parse("INSERT INTO t0 VALUES (0, 1), (1, 2);")
