@@ -96,7 +96,7 @@ class SQLParser(Lark):
                                       [Tree('sql_stmt', [t])]))
                 except LarkError as e2:
                     # warn if statement couldn't be parsed by unexpected stmt parser
-                    logging.log(logging.WARN, e2)
+                    logging.warning(e2)
                     # construct error tree
                     t = Tree("sql_stmt_list",
                              [Tree("sql_stmt",
@@ -105,7 +105,8 @@ class SQLParser(Lark):
                     trees.append(t)
 
         # merge sql statements from single statement parse trees into one tree
-        logging.warning(f"{num_parse_errors}/{len(trees)} stmts not fully parsed. This isn't necessarily an issue, as the reducer can operate on partial parses.")
+        if num_parse_errors > 0:
+            logging.warning(f"{num_parse_errors}/{len(trees)} stmts not fully parsed. This isn't necessarily an issue, as the reducer can operate on partial parses.")
         for t in trees:
             assert len(t.children) == 1
         return Tree("sql_stmt_list", [x.children[0] for x in trees])
