@@ -6,7 +6,7 @@ list_expr.2: "(" list_item ("," list_item)+ ")"
 
 list_item: (UNKNOWN | STRING | NUM | paren_expr | list_expr)+
 
-UNKNOWN: /[^'()+\-0-9,\s][^'()+\-,\s]*/
+UNKNOWN: /[^'()0-9,\s][^'(),\s]*/
 
 STRING: /'([^']|(''))*'/
 

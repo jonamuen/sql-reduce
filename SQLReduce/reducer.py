@@ -60,6 +60,8 @@ class Reducer:
                                 global_fixed_point = False
                                 best_length = len(stmt_cand)
                                 best = candidate
+                                with open('best.sql', 'w') as f:
+                                    f.write(stmt_cand)
                                 break
                             cache[h] = False
         except KeyboardInterrupt:

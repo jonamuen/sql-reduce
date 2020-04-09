@@ -356,7 +356,6 @@ class ListItemRemover(AbstractTransformationsIterator):
         if self.stmt_index == self.remove_index[0]:
             if self.remove_index[1] < len(tree.children):
                 tree = tree.__deepcopy__(None)
-                print(f"deleting: {tree.children[self.remove_index[1]]}")
                 del tree.children[self.remove_index[1]]
         return tree
 

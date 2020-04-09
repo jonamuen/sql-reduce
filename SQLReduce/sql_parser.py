@@ -12,40 +12,24 @@ def split_into_stmts(text: str):
     Split a string of multiple sql statements into a list of single statements.
     :param text:
     """
-    # use the following RE to find string literals since they may contain
-    # a semicolon that doesn't indicate the end of a SQL statement
-    # TODO: Fix quadratic runtime of this procedure
-    string_re = re.compile(r"'([^']|(''))*'")
-
-    # store start and end position of all matches
-    match_ranges = []
-    m = string_re.search(text)
-    while m:
-        match_ranges.append(m.span())
-        s = m.end()
-        m = string_re.search(text, s)
-
-    # split text into single sql statements
-    stmts = []
-    begin_next = 0  # holds the index where the next sql statement begins
-    for i, c in enumerate(text):
-        if c == ';':
-            # in_str is set to True if the semicolon is inside a str
-            in_str = False
-
-            for begin, end in match_ranges:
-                if end <= i:
-                    continue
-                if begin > i:
-                    continue
+    buf = ''
+    in_str = False
+    for c in text:
+        buf += c
+        if not in_str:
+            if c == "'":
                 in_str = True
-                break
-            if not in_str:
-                stmt = text[begin_next: i + 1].lstrip().rstrip()
-                if len(stmt) > 1:
-                    stmts.append(stmt)
-                begin_next = i + 1
-    return stmts
+            elif c == ';':
+                yield buf
+                buf = ''
+        else:
+            if c == "'":
+                in_str = False
+    buf = buf.strip(' \n\t')
+    if len(buf) > 0:
+        if buf[-1] != ';':
+            buf += ';'
+        yield buf
 
 
 class SQLParser(Lark):
@@ -96,7 +80,7 @@ class SQLParser(Lark):
                                       [Tree('sql_stmt', [t])]))
                 except LarkError as e2:
                     # warn if statement couldn't be parsed by unexpected stmt parser
-                    logging.log(logging.WARN, e2)
+                    logging.warning(e2)
                     # construct error tree
                     t = Tree("sql_stmt_list",
                              [Tree("sql_stmt",
@@ -105,113 +89,11 @@ class SQLParser(Lark):
                     trees.append(t)
 
         # merge sql statements from single statement parse trees into one tree
-        logging.warning(f"{num_parse_errors}/{len(trees)} stmts not fully parsed. This isn't necessarily an issue, as the reducer can operate on partial parses.")
+        if num_parse_errors > 0:
+            logging.warning(f"{num_parse_errors}/{len(trees)} stmts not fully parsed. This isn't necessarily an issue, as the reducer can operate on partial parses.")
         for t in trees:
             assert len(t.children) == 1
         return Tree("sql_stmt_list", [x.children[0] for x in trees])
-
-
-def lex_unrecognized(stmt: str):
-    buf = ''
-    pos = 0
-    while pos < len(stmt):
-        c = stmt[pos]
-        if c in ' \t\n':
-            if len(buf) > 0:
-                yield Token('unknown', buf)
-                buf = ''
-            pos += 1
-            continue
-        elif c == "'":
-            if len(buf) > 0:
-                yield Token('unknown', buf)
-                buf = ''
-            literal, pos = read_string_literal(stmt, pos)
-            yield Token('string', literal)
-        elif c == '(':
-            if len(buf) > 0:
-                yield Token('unknown', buf)
-                buf = ''
-            yield Token('lparen', '(')
-            pos += 1
-        elif c == ')':
-            if len(buf) > 0:
-                yield Token('unknown', buf)
-                buf = ''
-            yield Token('rparen', ')')
-            pos += 1
-        elif c == ',':
-            if len(buf) > 0:
-                yield Token('unknown', buf)
-                buf = ''
-            yield Token('comma', ',')
-            pos += 1
-        else:
-            buf += c
-            pos += 1
-    if len(buf) > 0:
-        yield Token('unknown', buf)
-
-
-def parse_unrecognized(stream: List[Token], start=0):
-    stack = []
-    pos = start
-    while pos < len(stream):
-        token = stream[pos]
-        if token.type == 'lparen':
-            stack.append(token)
-        elif token.type == 'rparen':
-            # reduce
-            children = []
-            t = stack.pop(-1)
-            is_list = False
-            while type(t) != Token or t.type != 'lparen':
-                if type(t) == Token and t.type == 'comma':
-                    is_list = True
-                    reduce_list_item(stack)
-                else:
-                    children.append(t)
-                t = stack.pop(-1)
-            if is_list:
-                list_items = []
-                curr_item = Tree('list_item', [])
-                stack.append(Tree('list_expr', children[::-1]))
-            else:
-                stack.append(Tree("paren_expr", children[::-1]))
-        elif token.type == 'comma':
-            stack.append(token)
-        else:
-            stack.append(token)
-        pos += 1
-    return Tree('unrecognized_stmt', stack)
-
-
-def reduce_list_item(stack):
-    t = stack.pop(-1)
-    new_list_item = Tree('list_item', [])
-    while True:
-        if type(t) == Tree and t.data =='list_item' or type(t) == Token and t.type == 'lparen':
-            stack.append(t)
-            new_list_item.children = new_list_item.children[::-1]
-            stack.append(new_list_item)
-            break
-        else:
-            new_list_item.children.append(t)
-        t = stack.pop(-1)
-
-def read_string_literal(stmt, pos):
-    buf = stmt[pos]
-    pos += 1
-    while pos < len(stmt):
-        if stmt[pos:pos+2] == "''":
-            buf += stmt[pos:pos+2]
-            pos += 2
-        else:
-            buf += stmt[pos]
-            pos += 1
-            if buf[-1] == "'":
-                return buf, pos
-    raise LexError("Unterminated string: {buf}")
 
 
 if __name__ == '__main__':
