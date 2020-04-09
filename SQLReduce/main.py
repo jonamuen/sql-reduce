@@ -8,16 +8,20 @@ from sql_parser import SQLParser
 from time import time
 import logging
 
-logging.basicConfig(level=logging.WARNING)
-
 
 def main():
     t0 = time()
     parser = argparse.ArgumentParser(description='Reduce an SQL statement')
+    parser.add_argument('-v', '--verbose', action='store_true', help='Report progress information to stderr')
     parser.add_argument('verifier', type=str, help='Path to an executable verification tool')
     parser.add_argument('sql', type=str, help='Path to an SQL file')
 
     args = parser.parse_args()
+
+    if args.verbose:
+        logging.basicConfig(level=logging.INFO)
+    else:
+        logging.basicConfig(level=logging.WARNING)
 
     reduction_passes = [StatementRemover(), SimpleColumnRemover(), ExprSimplifier(), ListItemRemover(), TokenRemover()]
 
