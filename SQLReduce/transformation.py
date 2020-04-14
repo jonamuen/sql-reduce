@@ -2,7 +2,7 @@ from lark import Transformer, v_args, Discard
 from lark import Tree
 from lark.lexer import Token
 from typing import Iterator
-from named_tree import NamedTree, NamedTreeConstructor
+from named_tree import NamedTree, NamedTreeConstructor, DataToken
 from itertools import combinations
 from math import comb
 import logging
@@ -226,66 +226,66 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
         self._num_column_refs = 0
 
     def _default(self, tree):
-        return Tree(tree.data, list(map(self.transform, tree.children)))
+        return NamedTree(tree.data, list(map(self.transform, tree.children)))
 
     def transform(self, tree):
-        if type(tree) == Token:
+        if type(tree) == DataToken:
             return tree.__deepcopy__(None)
-        elif tree.data == "create_table_stmt":
+        if type(tree) != NamedTree:
+            tree = NamedTreeConstructor().transform(tree)
+        if tree.data == 'create_table_stmt':
             return self.create_table_stmt(tree)
-        elif tree.data == "insert_stmt" or tree.data == "upsert_stmt":
+        elif tree.data == 'insert_stmt' or tree.data == 'upsert_stmt':
             return self.insert_stmt(tree)
-        elif tree.data == "update_stmt":
+        elif tree.data == 'update_stmt':
             return self.update_stmt(tree)
-        elif tree.data == "sql_stmt_list":
+        elif tree.data == 'sql_stmt_list':
             # reset at root of parse tree
             self._num_column_refs = 0
             return self._default(tree)
         else:
             return self._default(tree)
 
-    def create_table_stmt(self, tree: Tree):
+    def create_table_stmt(self, tree: NamedTree):
         """
         Create table statement grammar:
         k_create k_table table_name LPAREN column_def_list RPAREN
         :param tree:
         :return:
         """
-        tree = NamedTreeConstructor().transform(tree)
-        column_defs = tree["column_def_list"][0]
+        column_defs = tree['column_def_list'][0]
         num_columns = len(column_defs.children)
         i = self.remove_index - self._num_column_refs
         if 0 <= i < num_columns:
             tree = tree.__deepcopy__(None)
-            del tree["column_def_list"][0].children[i]
+            del tree['column_def_list'][0].children[i]
         self._num_column_refs += num_columns
         return tree
 
-    def insert_stmt(self, tree: Tree):
+    def insert_stmt(self, tree: NamedTree):
         """
         Insert statement grammar:
         k_insert k_into table_name (LPAREN column_list RPAREN)? k_values values_list
         :param tree:
         :return:
         """
-        values_list = tree.children[-1]
-        num_columns = len(values_list.children[0].children)
+        values_list = tree['values_list'][0]
+        num_columns = len(values_list['value_tuple'][0].children)
         i = self.remove_index - self._num_column_refs
         if 0 <= i < num_columns:
             tree = tree.__deepcopy__(None)
-            if len(tree.children) == 8:
-                # has column references
-                column_list = tree.children[4]
+            column_list = tree['column_list', 0]
+            if column_list:
                 del column_list.children[i]
 
             # update values_list to new tree
-            values_list = tree.children[-1]
-            for value_tuple in values_list.children:
+            values_list = tree['values_list'][0]
+            for value_tuple in values_list['value_tuple']:
                 del value_tuple.children[i]
         self._num_column_refs += num_columns
         return tree
 
-    def update_stmt(self, tree):
+    def update_stmt(self, tree: NamedTree):
         """
         Update statement grammar:
         k_update table_name k_set assign_list where_clause?
@@ -293,12 +293,12 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
         :return:
         """
         # an assignment consists of [column_name, EQUAL, VALUE], thus divide by 3
-        assert len(tree.children[3].children) % 3 == 0
+        assert len(tree['assign_list', 0].children) % 3 == 0
         num_columns = len(tree.children[3].children) // 3
         i = self.remove_index - self._num_column_refs
         if 0 <= i < num_columns:
             tree = tree.__deepcopy__(None)
-            assignment_list = tree.children[3]
+            assignment_list = tree['assign_list', 0]
             # delete [column_name, EQUAL, VALUE]
             del assignment_list.children[3*i:3*(i+1)]
         self._num_column_refs += num_columns
@@ -318,6 +318,8 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
         :return: an iterator of parse trees
         """
         # try removing index 0 and find number of columns at the same time
+        if type(tree) != NamedTree:
+            tree = NamedTreeConstructor().transform(tree)
         self.remove_index = 0
         reduced = self.transform(tree)
         num_column_refs = self._num_column_refs
