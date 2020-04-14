@@ -28,6 +28,12 @@ class Reducer:
         tree = self.parser.parse(stmt)
         t1 = time()
         logging.info(f"Parse time: {t1-t0}")
+        stmt_list = list(map(self.pprinter.transform, tree.children))
+        if not self.verifier.verify(stmt_list, stmt_list):
+            logging.error("Verifier returns 1 for unmodified statement!\n"
+                          "If you are sure that the verifier is correct, this "
+                          "could be a bug in the pretty printer.")
+            exit(1)
         best = tree.__deepcopy__(None)
         itr_counter = 0
         best_length = ''
