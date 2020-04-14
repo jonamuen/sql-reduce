@@ -330,18 +330,26 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
 
 
 class ListItemRemover(AbstractTransformationsIterator):
+    """
+    Simultaneously remove multiple items from list expressions in an unexpected
+    statement.
+    """
     def __init__(self, remove_index=(0, 0)):
         self.remove_index = remove_index
         self.stmt_index = -1
         self.list_expr_max_length = []
 
     def _default(self, tree):
-        return Tree(tree.data, list(map(self.transform, tree.children)))
+        return NamedTree(tree.data, list(map(self.transform, tree.children)))
 
     def transform(self, tree):
-        if type(tree) == Token:
+        if type(tree) == DataToken:
             return tree.__deepcopy__(None)
-        elif tree.data == 'unexpected_stmt':
+
+        if type(tree) != NamedTree:
+            tree = NamedTreeConstructor().transform(tree)
+
+        if tree.data == 'unexpected_stmt':
             return self.unexpected_stmt(tree)
         elif tree.data == 'list_expr':
             return self.list_expr(tree)
@@ -361,8 +369,10 @@ class ListItemRemover(AbstractTransformationsIterator):
                 del tree.children[self.remove_index[1]]
         return tree
 
-    def all_transforms(self, tree: Tree) -> Iterator[Tree]:
+    def all_transforms(self, tree: Tree) -> Iterator[NamedTree]:
         self.__init__()
+        if type(tree) != NamedTree:
+            tree = NamedTreeConstructor().transform(tree)
         reduced = self.transform(tree)
         yield reduced
         num_stmts = self.stmt_index + 1
@@ -392,14 +402,15 @@ class TokenRemover(Transformer, AbstractTransformationsIterator):
         return token
 
     def __default__(self, data, children, meta):
-        # delete '(' directly followed by ')', traverse in reverse order to
-        # avoid index errors after deletion
+        # delete '(' directly followed by ')'
         empty_paren_indices = []  # store indices of empty parentheses for removal
         for i in range(len(children) - 1):
-            if type(children[i]) == Token and type(children[i+1]) == Token:
+            if issubclass(type(children[i]), Token)\
+                    and issubclass(type(children[i+1]), Token):
                 if children[i].value == '(' and children[i+1].value == ')':
                     empty_paren_indices.append(i)
                     empty_paren_indices.append(i+1)
+        # traverse in reverse order to avoid index errors after deletion
         for i in empty_paren_indices[::-1]:
             del children[i]
         if len(children) == 0:
@@ -416,10 +427,12 @@ class TokenRemover(Transformer, AbstractTransformationsIterator):
     def sql_stmt_list(self, children):
         return Tree('sql_stmt_list', children)
 
-    def all_transforms(self, tree: Tree) -> Iterator[Tree]:
+    def all_transforms(self, tree: Tree) -> Iterator[NamedTree]:
         max_simult = 2
         max_consec = 3
         self.__init__()
+        if type(tree) != NamedTree:
+            tree = NamedTreeConstructor().transform(tree)
         # do one empty pass to determine number of combinations
         _ = self.transform(tree)
         # yield transforms with consecutive tokens removed first
