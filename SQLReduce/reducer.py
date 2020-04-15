@@ -36,40 +36,55 @@ class Reducer:
             exit(1)
         best = tree.__deepcopy__(None)
         itr_counter = 0
-        best_length = ''
+        best_length = len(self.pprinter.transform(best))
         cache = dict()
+        stmts_original = list(map(self.pprinter.transform, tree.children))
         try:
             while not global_fixed_point:
                 global_fixed_point = True
                 for t in self.transforms:
                     # iterate with a single transform until no more improvements are possible
                     local_fixed_point = False
+                    progress = 0
                     while not local_fixed_point:
                         local_fixed_point = True
-                        for candidate in t.all_transforms(best):
+                        itr = t.all_transforms(best, progress)
+                        t0 = time()
+                        for i, candidate in itr:
+                            t1 = time()
+                            logging.info(f"Generation: {t1-t0}s")
                             logging.info(f"Iterations: {itr_counter}, Tr: {t}, Shortest result: {best_length}")
+                            t0 = time()
                             itr_counter += 1
-                            stmts_old = list(map(self.pprinter.transform, tree.children))
                             stmts_cand = list(map(self.pprinter.transform, candidate.children))
-                            stmt_old = self.pprinter.transform(best)
-                            stmt_cand = self.pprinter.transform(candidate)
+                            stmt_cand = ''.join(stmts_cand)
                             h = hash(stmt_cand)
+                            t1 = time()
+                            logging.info(f"Preparation: {t1-t0}s")
                             try:
                                 if not cache[h]:
                                     logging.info(f"Cache hit")
+                                    t0 = time()
                                     continue
                             except KeyError:
                                 pass
-                            if len(stmt_cand) < len(stmt_old) and self.verifier.verify(stmts_old, stmts_cand):
-                                cache = {h: True}
-                                local_fixed_point = False
-                                global_fixed_point = False
-                                best_length = len(stmt_cand)
-                                best = candidate
-                                with open('best.sql', 'w') as f:
-                                    f.write(stmt_cand)
-                                break
+                            if len(stmt_cand) < best_length:
+                                t0 = time()
+                                res = self.verifier.verify(stmts_original, stmts_cand)
+                                t1 = time()
+                                logging.info(f"Verification: {t1-t0}s")
+                                if res:
+                                    cache = {h: True}
+                                    local_fixed_point = False
+                                    global_fixed_point = False
+                                    best_length = len(stmt_cand)
+                                    best = candidate
+                                    progress = i
+                                    with open('best.sql', 'w') as f:
+                                        f.write(stmt_cand)
+                                    break
                             cache[h] = False
+                            t0 = time()
         except KeyboardInterrupt:
             pass
         logging.info(f"Iterations: {itr_counter}, Shortest result: {best_length}")

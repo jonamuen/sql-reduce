@@ -3,7 +3,7 @@ from itertools import combinations
 from lark import Tree, Token, Lark
 from lark import ParseError
 from utils import partial_equivalence
-from transformation import StatementRemover, PrettyPrinter, SimpleColumnRemover, ValueMinimizer, ExprSimplifier, TokenRemover
+from transformation import StatementRemover, PrettyPrinter, SimpleColumnRemover, ValueMinimizer, ExprSimplifier, TokenRemover, TokenRemoverNonConsec
 from pathlib import Path
 from sql_parser import SQLParser
 from reducer import Reducer
@@ -476,6 +476,7 @@ class SimpleColumnRemoverTest(unittest.TestCase):
         ]
         results = self.scrm.all_transforms(self.parser.parse(stmt))
         for exp, res in zip(expected, results):
+            _, res = res
             self.assertEqual(self.parser.parse(exp), res)
 
 
@@ -487,19 +488,19 @@ class ExprSimplifierTest(unittest.TestCase):
 
     def test_1(self):
         tree = self.parser.parse("SELECT NOT c0 + c1 * c2 FROM t0;")
-        for x in self.simplifier.all_transforms(tree):
+        for _, x in self.simplifier.all_transforms(tree):
             print(PrettyPrinter().transform(x))
         print(self.simplifier._num_reduction_opportunities)
 
     def test_2(self):
         tree = self.parser.parse("SELECT NULLIF(c0 + c1, c0 - c1) FROM t0;")
-        for x in self.simplifier.all_transforms(tree):
+        for _, x in self.simplifier.all_transforms(tree):
             print(PrettyPrinter().transform(x))
         print(self.simplifier._num_reduction_opportunities)
 
     def test_3(self):
         tree = self.parser.parse("SELECT CAST(c0 * c1 AS INT) FROM t0;")
-        for x in self.simplifier.all_transforms(tree):
+        for _, x in self.simplifier.all_transforms(tree):
             print(PrettyPrinter().transform(x))
         print(self.simplifier._num_reduction_opportunities)
 
@@ -539,39 +540,46 @@ class TokenRemoverTest(unittest.TestCase):
         stmt = "CHECK (true);"
         tree = self.parser.parse(stmt)
         expected = set(map(self.parser.parse, ["CHECK;", "(true);", ""]))
-        result = set(self.trm.all_transforms(tree))
+        result = set(x for _,x in self.trm.all_transforms(tree))
         self.assertEqual(expected, result)
 
     def test_constraint(self):
         tree = self.parser.parse("CREATE TABLE IF NOT EXISTS t0 (c2 INTERVAL) CHECK (true);")
         expected = self.parser.parse("CREATE TABLE IF NOT EXISTS t0 (c2 INTERVAL);")
-        results = self.trm.all_transforms(tree)
-        self.assertIn(expected, results)
-
-    def test_non_cosecutive_tokens(self):
-        tree = self.parser.parse("CREATE TABLE IF NOT EXISTS t0 (c2 INTERVAL) CHECK (true);")
-        expected = "CREATE TABLE NOT t0 (c2 INTERVAL) CHECK (true);"
-        results = map(PrettyPrinter().transform, self.trm.all_transforms(tree))
+        results = [x for _, x in self.trm.all_transforms(tree)]
         self.assertIn(expected, results)
 
     def test_consecutive_tokens(self):
         tree = self.parser.parse("CREATE TABLE IF NOT EXISTS t0 (c2 INTERVAL) CHECK (true);")
         expected = self.parser.parse("CREATE TABLE t0 (c2 INTERVAL) CHECK (true);")
-        results = self.trm.all_transforms(tree)
+        results = [x for _, x in self.trm.all_transforms(tree)]
         self.assertIn(expected, results)
 
     def test_remove_column_ref_parseable(self):
         stmt = "UPSERT INTO t0 (c2) VALUES (TIMESTAMP 'year');"
         tree = self.parser.parse(stmt)
         expected = self.parser.parse("UPSERT INTO t0 VALUES (TIMESTAMP 'year');")
-        results = self.trm.all_transforms(tree)
+        results = [x for _, x in self.trm.all_transforms(tree)]
         self.assertIn(expected, results)
 
     def test_remove_column_ref_non_parseable(self):
         stmt = "UPSRT INTO t0 (c2) VALUES (TIMESTAMP 'year');"
         tree = self.parser.parse(stmt)
         expected = self.parser.parse("UPSRT INTO t0 VALUES (TIMESTAMP 'year');")
-        results = self.trm.all_transforms(tree)
+        results = [x for _, x in self.trm.all_transforms(tree)]
+        self.assertIn(expected, results)
+
+
+class TokenRemoverNonConsecTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
+        cls.trm = TokenRemoverNonConsec()
+
+    def test_non_consecutive_tokens(self):
+        tree = self.parser.parse("CREATE TABLE IF NOT EXISTS t0 (c2 INTERVAL) CHECK (true);")
+        expected = "CREATE TABLE NOT t0 (c2 INTERVAL) CHECK (true);"
+        results = map(lambda x: PrettyPrinter().transform(x[1]), self.trm.all_transforms(tree))
         self.assertIn(expected, results)
 
 
