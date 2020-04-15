@@ -382,18 +382,30 @@ class ListItemRemover(AbstractTransformationsIterator):
                 del tree.children[self.remove_index[1]]
         return tree
 
-    def all_transforms(self, tree: Tree, progress: int = 0) -> Iterator[Tuple[int, NamedTree]]:
+    def all_transforms(self, tree: Tree, start: int = 0) -> Iterator[Tuple[int, NamedTree]]:
         self.__init__()
+        progress = 0
         if type(tree) != NamedTree:
             tree = NamedTreeConstructor().transform(tree)
-        reduced = self.transform(tree)
-        yield 0, reduced
+        if start <= progress:
+            reduced = self.transform(tree)
+            yield 0, reduced
+        progress += 1
         num_stmts = self.stmt_index + 1
         max_lengths = [x for x in self.list_expr_max_length]
+        skipped = []
         for i in range(0, num_stmts):
             for j in range(0, max_lengths[i]):
+                if progress < start:
+                    skipped.append((i,j))
+                    progress += 1
+                    continue
                 self.__init__((i, j))
-                yield i*max_lengths[i]+j, self.transform(tree)
+                yield progress, self.transform(tree)
+                progress += 1
+        for i, s in enumerate(skipped):
+            self.__init__(s)
+            yield i, s
 
 
 class TokenRemover(Transformer, AbstractTransformationsIterator):
