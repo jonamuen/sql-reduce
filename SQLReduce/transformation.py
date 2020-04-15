@@ -442,7 +442,6 @@ class TokenRemover(Transformer, AbstractTransformationsIterator):
         return NamedTree('sql_stmt_list', children, meta)
 
     def all_transforms(self, tree: Tree, start=0) -> Iterator[NamedTree]:
-        max_simult = 2
         max_consec = 3
         self.__init__()
         if type(tree) != NamedTree:
@@ -473,14 +472,35 @@ class TokenRemover(Transformer, AbstractTransformationsIterator):
             self.__init__(s)
             logging.info(f'TokenRemover (skipped): {i}/{len(skipped)}')
             yield i, self.transform(tree)
-        num_combinations = sum(map(lambda x: sum([comb(x, i) for i in range(2, max_simult+1)]), self.num_options_per_stmt))
+
+
+class TokenRemoverNonConsec(TokenRemover):
+    def all_transforms(self, tree: Tree, start=0) -> Iterator[NamedTree]:
+        max_simult = 2
+        self.__init__()
+        if type(tree) != NamedTree:
+            tree = NamedTreeConstructor().transform(tree)
+        # do one empty pass to determine number of combinations
+        _ = self.transform(tree)
+
+        skipped = []
+        num_combinations = sum(
+            map(lambda x: sum([comb(x, i) for i in range(2, max_simult + 1)]), self.num_options_per_stmt))
         progress = 1
         for i, j in enumerate(self.num_options_per_stmt):
             # start with removing 2 tokens at once since the cases with just one
             # have been yielded already
-            for k in range(2, max_simult+1):
+            for k in range(2, max_simult + 1):
                 for c in combinations(range(0, j), k):
+                    if progress < start:
+                        skipped.append([(i, x) for x in c])
+                        progress += 1
+                        continue
                     logging.info(f"TokenRemover (non-consecutive): {progress}/{num_combinations}")
                     self.__init__([(i, x) for x in c])
                     yield progress, self.transform(tree)
                     progress += 1
+        for i, s in enumerate(skipped):
+            self.__init__(s)
+            logging.info(f'TokenRemover (non-consecutive) (skipped): {i}/{len(skipped)}')
+            yield i, self.transform(tree)

@@ -3,7 +3,7 @@ from itertools import combinations
 from lark import Tree, Token, Lark
 from lark import ParseError
 from utils import partial_equivalence
-from transformation import StatementRemover, PrettyPrinter, SimpleColumnRemover, ValueMinimizer, ExprSimplifier, TokenRemover
+from transformation import StatementRemover, PrettyPrinter, SimpleColumnRemover, ValueMinimizer, ExprSimplifier, TokenRemover, TokenRemoverNonConsec
 from pathlib import Path
 from sql_parser import SQLParser
 from reducer import Reducer
@@ -549,12 +549,6 @@ class TokenRemoverTest(unittest.TestCase):
         results = [x for _, x in self.trm.all_transforms(tree)]
         self.assertIn(expected, results)
 
-    def test_non_consecutive_tokens(self):
-        tree = self.parser.parse("CREATE TABLE IF NOT EXISTS t0 (c2 INTERVAL) CHECK (true);")
-        expected = "CREATE TABLE NOT t0 (c2 INTERVAL) CHECK (true);"
-        results = map(lambda x: PrettyPrinter().transform(x[1]), self.trm.all_transforms(tree))
-        self.assertIn(expected, results)
-
     def test_consecutive_tokens(self):
         tree = self.parser.parse("CREATE TABLE IF NOT EXISTS t0 (c2 INTERVAL) CHECK (true);")
         expected = self.parser.parse("CREATE TABLE t0 (c2 INTERVAL) CHECK (true);")
@@ -573,6 +567,19 @@ class TokenRemoverTest(unittest.TestCase):
         tree = self.parser.parse(stmt)
         expected = self.parser.parse("UPSRT INTO t0 VALUES (TIMESTAMP 'year');")
         results = [x for _, x in self.trm.all_transforms(tree)]
+        self.assertIn(expected, results)
+
+
+class TokenRemoverNonConsecTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
+        cls.trm = TokenRemoverNonConsec()
+
+    def test_non_consecutive_tokens(self):
+        tree = self.parser.parse("CREATE TABLE IF NOT EXISTS t0 (c2 INTERVAL) CHECK (true);")
+        expected = "CREATE TABLE NOT t0 (c2 INTERVAL) CHECK (true);"
+        results = map(lambda x: PrettyPrinter().transform(x[1]), self.trm.all_transforms(tree))
         self.assertIn(expected, results)
 
 
