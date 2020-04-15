@@ -18,42 +18,49 @@ class Reducer:
         """
         reduce takes as input a SQL statement and executes the provided
         transformations until a fixed point is reached. Fixed point:
-        \forall t \in self.transforms \forall c \in t.all_transforms not verify(stmt, c)
+        \\forall t \\in self.transforms \\forall c \\in t.all_transforms not verify(stmt, c)
         :param stmt:
         :return:
         """
-        global_fixed_point = False
         logging.info("Parsing...")
         t0 = time()
         tree = self.parser.parse(stmt)
         t1 = time()
         logging.info(f"Parse time: {t1-t0}")
+
+        # check if verifier returns 0 for unmodified statement
         stmt_list = list(map(self.pprinter.transform, tree.children))
         if not self.verifier.verify(stmt_list, stmt_list):
             logging.error("Verifier returns 1 for unmodified statement!\n"
                           "If you are sure that the verifier is correct, this "
                           "could be a bug in the pretty printer.")
             exit(1)
+
+        # set up
         best = tree.__deepcopy__(None)
         itr_counter = 0
         best_length = len(self.pprinter.transform(best))
         cache = dict()
         stmts_original = list(map(self.pprinter.transform, tree.children))
         try:
+            global_fixed_point = False
+            # the global fixed point is reached when no transform yields a valid reduction
             while not global_fixed_point:
                 global_fixed_point = True
                 for t in self.transforms:
-                    # iterate with a single transform until no more improvements are possible
+                    # a local fixed point is reached when the current transform doesn't yield any valid reductions
                     local_fixed_point = False
                     progress = 0
                     while not local_fixed_point:
                         local_fixed_point = True
                         itr = t.all_transforms(best, progress)
+
                         t0 = time()
                         for i, candidate in itr:
                             t1 = time()
-                            logging.info(f"Generation: {t1-t0}s")
                             logging.info(f"Iterations: {itr_counter}, Tr: {t}, Shortest result: {best_length}")
+                            logging.info(f"Generation: {t1-t0}s")
+
                             t0 = time()
                             itr_counter += 1
                             stmts_cand = list(map(self.pprinter.transform, candidate.children))
@@ -61,6 +68,8 @@ class Reducer:
                             h = hash(stmt_cand)
                             t1 = time()
                             logging.info(f"Preparation: {t1-t0}s")
+
+                            # TODO: use set as cache
                             try:
                                 if not cache[h]:
                                     logging.info(f"Cache hit")
