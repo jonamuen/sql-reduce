@@ -3,7 +3,7 @@ from itertools import combinations
 from lark import Tree, Token, Lark
 from lark import ParseError
 from utils import partial_equivalence
-from transformation import StatementRemover, PrettyPrinter, SimpleColumnRemover, ValueMinimizer, ExprSimplifier, TokenRemover, TokenRemoverNonConsec
+from transformation import StatementRemover, PrettyPrinter, SimpleColumnRemover, ValueMinimizer, ExprSimplifier, TokenRemover, TokenRemoverNonConsec, CompoundSimplifier
 from pathlib import Path
 from sql_parser import SQLParser
 from reducer import Reducer
@@ -478,6 +478,53 @@ class SimpleColumnRemoverTest(unittest.TestCase):
         for exp, res in zip(expected, results):
             _, res = res
             self.assertEqual(self.parser.parse(exp), res)
+
+
+class CompoundSimplifierTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.parser = SQLParser('sql.lark', start='sql_stmt_list', debug=True, parser='lalr')
+        cls.pprinter = PrettyPrinter()
+
+    def test_remove_left(self):
+        stmt = "SELECT c0 FROM t0 UNION SELECT c1 FROM t0;"
+        expected = "SELECT c1 FROM t0;"
+        tree = self.parser.parse(stmt)
+        compsimp = CompoundSimplifier(0)
+        result = self.pprinter.transform(compsimp.transform(tree))
+        self.assertEqual(expected, result)
+
+    def test_remove_right(self):
+        stmt = "SELECT c0 FROM t0 UNION SELECT c1 FROM t0;"
+        expected = "SELECT c0 FROM t0;"
+        tree = self.parser.parse(stmt)
+        compsimp = CompoundSimplifier(1)
+        result = self.pprinter.transform(compsimp.transform(tree))
+        self.assertEqual(expected, result)
+
+    def test_remove_middle(self):
+        stmt = "SELECT c0 FROM t0 UNION ALL SELECT c1 FROM t0 UNION SELECT c2 FROM t0;"
+        expected = "SELECT c0 FROM t0 UNION SELECT c2 FROM t0;"
+        tree = self.parser.parse(stmt)
+        compsimp = CompoundSimplifier(1)
+        result = self.pprinter.transform(compsimp.transform(tree))
+        self.assertEqual(expected, result)
+
+    def test_remove_from_subquery(self):
+        stmt = "SELECT c0, (SELECT c1 FROM t1 UNION SELECT c2 FROM t0) FROM t0;"
+        expected = "SELECT c0, (SELECT c1 FROM t1) FROM t0;"
+        tree = self.parser.parse(stmt)
+        compsimp = CompoundSimplifier(1)
+        result = self.pprinter.transform(compsimp.transform(tree))
+        self.assertEqual(expected, result)
+
+    def test_all_transforms(self):
+        stmt = "SELECT c0 FROM t0 UNION SELECT c1 FROM t0 UNION SELECT c2 FROM t0;"
+        expected = "SELECT c0 FROM t0 UNION SELECT c1 FROM t0;"
+        tree = self.parser.parse(stmt)
+        compsimp = CompoundSimplifier()
+        result = map(self.pprinter.transform, compsimp.all_transforms(tree))
+        self.assertIn(expected, result)
 
 
 class ExprSimplifierTest(unittest.TestCase):

@@ -347,6 +347,61 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
             yield i, self.transform(tree)
 
 
+class CompoundSimplifier(Transformer, AbstractTransformationsIterator):
+    """
+    Simplify compound expressions (UNION, INTERSECT, EXCEPT).
+    """
+    def __init__(self, remove_index: int = 0):
+        super().__init__()
+        self.remove_index = remove_index
+        self.index = 0
+        self._num_reduction_opportunities = 0
+
+    @v_args(meta=True)
+    def select_stmt_helper(self, children, meta):
+        tree = NamedTree('select_stmt_helper', children, meta)
+        lhs = tree['select_stmt_helper', 0]
+        if lhs:
+            rhs = tree['select_stmt', 0]
+            if rhs:
+                if self.remove_index == self.index:
+                    del tree.children[1]
+                    del tree.children[0]
+                elif self.remove_index == self.index + 1:
+                    del tree.children[2]
+                    del tree.children[1]
+                    tree.children = tree.children[0].children
+                self.index += 2
+            else:
+                tree.children = tree.children[0].children
+        return tree
+
+    def __default__(self, data, children, meta):
+        return NamedTree(data, children, meta)
+
+    def transform(self, tree: Tree) -> NamedTree:
+        if type(tree) != NamedTree:
+            tree = NamedTreeConstructor().transform(tree)
+        return super().transform(tree)
+
+    def all_transforms(self, tree: NamedTree, progress: int = 0) -> Iterator[Tuple[int, Tree]]:
+        if type(tree) != NamedTree:
+            tree = NamedTreeConstructor().transform(tree)
+        self.__init__(0)
+        yield self.transform(tree)
+        self._num_reduction_opportunities = self.index
+        skipped = []
+        for i in range(1, self._num_reduction_opportunities):
+            if i < progress:
+                skipped.append(i)
+                continue
+            self.__init__(i)
+            yield self.transform(tree)
+        for i in skipped:
+            self.__init__(i)
+            yield self.transform(tree)
+
+
 class ListItemRemover(AbstractTransformationsIterator):
     """
     Simultaneously remove multiple items from list expressions in an unexpected

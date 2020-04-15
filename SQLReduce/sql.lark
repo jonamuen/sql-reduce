@@ -11,7 +11,7 @@ sql_stmt: select_stmt_full
 // add WITH
 select_stmt_full: (k_with column_name k_as LPAREN select_stmt_helper RPAREN)? select_stmt_helper
 
-select_stmt_helper: select_stmt_helper (k_union | k_intersect | k_except) k_all? select_stmt | select_stmt
+select_stmt_helper: select_stmt_helper compound_operator select_stmt | select_stmt
 select_stmt.1: k_select k_distinct? subquery_or_expr_list from_clause? \
                 where_clause? order_by_clause? limit_clause? offset_clause?
 
@@ -95,6 +95,8 @@ constraint: k_check expr
 // TODO: add more operators
 operator: PLUS | MINUS | STAR | SLASH | EQUAL | NEQ | GREATER | LESS | k_is
         | k_or | k_and
+
+compound_operator: (k_union k_all?) | k_intersect | k_except
 
 // force anonymous literals to appear in tree with ! prefix
 !k_select: "SELECT" | "select"
