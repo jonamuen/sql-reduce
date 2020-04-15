@@ -32,6 +32,24 @@ class NamedTree(Tree):
                     res.append(c)
             return res
 
+    def __delitem__(self, key):
+        if type(key) == tuple:
+            item, index = key
+            count = 0
+            for i, c in enumerate(self.children):
+                if c.data == item:
+                    if count == index:
+                        del self.children[i]
+                        return
+                    count += 1
+        else:
+            del_list = []
+            for i, c in enumerate(self.children):
+                if c.data == key:
+                    del_list.append(i)
+            for i in del_list[::-1]:
+                del self.children[i]
+
     def __deepcopy__(self, memodict=None):
         return NamedTree(self.data, deepcopy(self.children), self.meta)
 
