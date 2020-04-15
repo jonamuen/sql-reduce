@@ -190,7 +190,7 @@ class ExprSimplifier(Transformer, AbstractTransformationsIterator):
     def expr_helper(self, children):
         remove_list = []
         new_children = [c for c in children]
-        if type(children[0]) == Tree:
+        if issubclass(type(children[0]), Tree):
             if children[0].data == "k_cast":
                 if self.remove_index - self._num_reduction_opportunities == 0:
                     remove_list += [0, 3, 4]
@@ -201,6 +201,11 @@ class ExprSimplifier(Transformer, AbstractTransformationsIterator):
                 elif self.remove_index - self._num_reduction_opportunities == 1:
                     remove_list += [0, 2, 3]
                 self._num_reduction_opportunities += 2
+        else:
+            if children[0].type == 'LPAREN' and children[2].type == 'RPAREN':
+                if self.remove_index - self._num_reduction_opportunities == 0:
+                    remove_list += [0, 2]
+                self._num_reduction_opportunities += 1
         for i in remove_list[::-1]:
             del new_children[i]
         return Tree("expr_helper", new_children)

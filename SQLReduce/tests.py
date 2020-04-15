@@ -610,7 +610,7 @@ class ReducerTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
         verifier = SQLiteReturnSetVerifier("test/test_reduce.sqlite")
-        cls.reducer = Reducer(parser, verifier, [StatementRemover(), SimpleColumnRemover()])
+        cls.reducer = Reducer(parser, verifier, [StatementRemover(), SimpleColumnRemover(), ExprSimplifier()])
         cls.pprinter = PrettyPrinter()
 
     def test_unneeded_inserts_and_tables(self):
@@ -645,6 +645,13 @@ class ReducerTest(unittest.TestCase):
         result = self.reducer.reduce(stmt)
         result_str = self.pprinter.transform(result)
         self.assertEqual(expected, result_str)
+
+    def test_expr_simplification(self):
+        stmt = "SELECT 1*(3+4)+(0);"
+        expected = "SELECT 3 + 4;"
+
+        result = self.reducer.reduce(stmt)
+        self.assertEqual(expected, self.pprinter.transform(result))
 
 
 if __name__ == '__main__':
