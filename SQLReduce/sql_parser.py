@@ -1,9 +1,7 @@
-from typing import List
-
 from lark import *
 from transformation import StatementRemover, PrettyPrinter
+from named_tree import NamedTreeConstructor, NamedTree
 from utils import expand_grammar
-import re
 import logging
 
 
@@ -45,14 +43,14 @@ class SQLParser(Lark):
             self.unrecognized_stmt_parser = Lark(f, start='unexpected_stmt',
                                                  debug=True, parser='lalr')
 
-    def parse(self, text: str, start=None):
+    def parse(self, text: str, start=None) -> NamedTree:
         """
         Overrides parse method from Lark. Splits text into single sql statements
         which are then parsed one at a time. If an error occurs, only the
         affected statement is returned as an unexpected_stmt and the parse
         doesn't abort.
         :param text: SQL statement(s)
-        :param start: (ignored)
+        :param start: (inherited, ignored)
         :return: A parse tree
         """
 
@@ -93,7 +91,8 @@ class SQLParser(Lark):
             logging.warning(f"{num_parse_errors}/{len(trees)} stmts not fully parsed. This isn't necessarily an issue, as the reducer can operate on partial parses.")
         for t in trees:
             assert len(t.children) == 1
-        return Tree("sql_stmt_list", [x.children[0] for x in trees])
+        # convert to NamedTree and return
+        return NamedTreeConstructor().transform(Tree("sql_stmt_list", [x.children[0] for x in trees]))
 
 
 if __name__ == '__main__':

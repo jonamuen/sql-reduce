@@ -1,12 +1,21 @@
 from lark import Token, Transformer, Tree
 from copy import deepcopy
+from typing import Union, Tuple
 
 
 class NamedTree(Tree):
     """
     Allow indexing a tree to access children.
     """
-    def __getitem__(self, item):
+    def __getitem__(self, item: Union[str, Tuple[str, int]]):
+        """
+        If item is a string, return a list of all children (DataToken or Tree)
+        whose data attribute is equal to item.
+        If item is a tuple of (a, i), return the i'th item whose data attribute
+        is equal to a or None.
+        :param item:
+        :return:
+        """
         if type(item) == tuple:
             item, index = item
             count = 0
@@ -31,6 +40,10 @@ class NamedTree(Tree):
 
 
 class NamedTreeConstructor(Transformer):
+    """
+    The transform method inherited from Transformer constructs a NamedTree
+    from a Tree.
+    """
     def __default__(self, data, children, meta):
         return NamedTree(data, children, meta)
 
@@ -42,6 +55,10 @@ class NamedTreeConstructor(Transformer):
 
 
 class DataToken(Token):
+    """
+    Same as Token, except it also exposes a data field like Tree.
+    The data field holds the same value as type.
+    """
     __slots__ = ['data']
 
     def __init__(self, type_, value, pos_in_stream=None, line=None, column=None, end_line=None, end_column=None, end_pos=None):
@@ -77,3 +94,5 @@ class DataToken(Token):
             return False
 
         return str.__eq__(self, other)
+
+    __hash__ = str.__hash__
