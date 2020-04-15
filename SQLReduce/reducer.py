@@ -57,7 +57,7 @@ class Reducer:
                             t0 = time()
                             itr_counter += 1
                             stmts_cand = list(map(self.pprinter.transform, candidate.children))
-                            stmt_cand = ''.join(c + ';\n' for c in stmts_cand)
+                            stmt_cand = ''.join(stmts_cand)
                             h = hash(stmt_cand)
                             t1 = time()
                             logging.info(f"Preparation: {t1-t0}s")
