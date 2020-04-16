@@ -13,7 +13,7 @@ select_stmt_full: (k_with column_name k_as LPAREN select_stmt_helper RPAREN)? se
 
 select_stmt_helper: select_stmt_helper compound_operator select_stmt | select_stmt
 select_stmt.1: k_select k_distinct? subquery_or_expr_list from_clause? \
-                where_clause? order_by_clause? limit_clause? offset_clause?
+                where_clause? (group_by_clause having_clause?)? order_by_clause? limit_clause? offset_clause?
 
 create_table_stmt.1: k_create k_table (k_if k_not k_exists)? table_name\
                         LPAREN column_def_list RPAREN constraint?
@@ -58,6 +58,10 @@ join_clause: (k_inner | k_left | k_right | k_full k_outer)? k_join \
 
 where_clause: k_where expr
 
+group_by_clause: k_group k_by expr ("," expr)*
+
+having_clause: k_having expr
+
 order_by_clause: k_order k_by column_name (k_asc | k_desc)?
 
 limit_clause: k_limit POS_INT
@@ -76,9 +80,10 @@ expr_helper: LPAREN expr RPAREN
            | k_coalesce LPAREN subquery_or_expr_list RPAREN
            | k_exists LPAREN select_stmt_helper RPAREN
            | k_case expr? case_list k_end
-           | k_min LPAREN expr RPAREN
-           | k_max LPAREN expr RPAREN
            | k_any LPAREN expr RPAREN
+           | agg_func LPAREN expr RPAREN
+
+agg_func: k_min | k_max | k_sum | k_avg | k_total | k_count
 
 case_list: k_when expr k_then expr (k_when expr k_then expr)* (k_else expr)?
 
@@ -151,6 +156,12 @@ compound_operator: (k_union k_all?) | k_intersect | k_except
 !k_if: "IF" | "if"
 !k_default: "DEFAULT" | "default"
 !k_check: "CHECK" | "check"
+!k_group: "GROUP" | "group"
+!k_having: "HAVING" | "having"
+!k_sum: "SUM" | "sum"
+!k_avg: "AVG" | "avg"
+!k_total: "TOTAL" | "total"
+!k_count: "COUNT" | "count"
 
 PLUS: "+"
 MINUS: "-"

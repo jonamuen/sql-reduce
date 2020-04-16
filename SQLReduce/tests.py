@@ -129,6 +129,16 @@ class ParserTest(unittest.TestCase):
         self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
         self.assertEqual(1, len(list(tree.find_data("order_by_clause"))))
 
+    def test_group_by(self):
+        tree = self.parser.parse("SELECT c0, SUM(c1) FROM t0 GROUP BY c0;")
+        self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
+        self.assertEqual(1, len(list(tree.find_data("group_by_clause"))))
+
+    def test_having(self):
+        tree = self.parser.parse("SELECT c0, AVG(c1) AS a FROM t0 GROUP BY c0 HAVING a > 0;")
+        self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
+        self.assertEqual(1, len(list(tree.find_data("having_clause"))))
+
     def test_insert(self):
         tree = self.parser.parse("INSERT INTO t0 VALUES (0, 1), (1, 2);")
         self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
