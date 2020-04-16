@@ -40,7 +40,7 @@ class Reducer:
         best = tree.__deepcopy__(None)
         itr_counter = 0
         best_length = len(self.pprinter.transform(best))
-        cache = dict()
+        cache = set()
         stmts_original = list(map(self.pprinter.transform, tree.children))
         try:
             global_fixed_point = False
@@ -65,13 +65,12 @@ class Reducer:
                             itr_counter += 1
                             stmts_cand = list(map(self.pprinter.transform, candidate.children))
                             stmt_cand = ''.join(stmts_cand)
-                            h = hash(stmt_cand)
+                            stmt_hash = hash(stmt_cand)
                             t1 = time()
                             logging.info(f"Preparation: {t1-t0}s")
 
-                            # TODO: use set as cache
                             try:
-                                if not cache[h]:
+                                if stmt_hash in cache:
                                     logging.info(f"Cache hit")
                                     t0 = time()
                                     continue
@@ -83,7 +82,7 @@ class Reducer:
                                 t1 = time()
                                 logging.info(f"Verification: {t1-t0}s")
                                 if res:
-                                    cache = {h: True}
+                                    cache.add(stmt_hash)
                                     local_fixed_point = False
                                     global_fixed_point = False
                                     best_length = len(stmt_cand)
@@ -92,7 +91,7 @@ class Reducer:
                                     with open('best.sql', 'w') as f:
                                         f.write(stmt_cand)
                                     break
-                            cache[h] = False
+                            cache.add(stmt_hash)
                             t0 = time()
         except KeyboardInterrupt:
             pass
