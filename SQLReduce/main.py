@@ -2,7 +2,7 @@
 import argparse
 
 from reducer import Reducer
-from transformation import StatementRemover, SimpleColumnRemover, ExprSimplifier, PrettyPrinter, ListItemRemover, TokenRemover, TokenRemoverNonConsec
+from transformation import StatementRemover, SimpleColumnRemover, ExprSimplifier, PrettyPrinter, ListItemRemover, TokenRemover, TokenRemoverNonConsec, OptionalRemover, CompoundSimplifier
 from verifier import Verifier
 from sql_parser import SQLParser
 from time import time
@@ -23,7 +23,7 @@ def main():
     else:
         logging.basicConfig(level=logging.WARNING)
 
-    reduction_passes = [StatementRemover(), SimpleColumnRemover(), ExprSimplifier(), ListItemRemover(), TokenRemover(), TokenRemoverNonConsec()]
+    reduction_passes = [StatementRemover(), OptionalRemover(), CompoundSimplifier(), SimpleColumnRemover(), ExprSimplifier(), ListItemRemover(), TokenRemover(), TokenRemoverNonConsec()]
 
     reducer = Reducer(SQLParser('sql.lark', start="sql_stmt_list", debug=False, parser='lalr'),
                       Verifier(args.verifier, 'test.sql'),

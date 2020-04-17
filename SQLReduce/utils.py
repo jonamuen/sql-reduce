@@ -18,6 +18,7 @@ def expand_grammar(filename: str):
                     out_file.write(line[:-2] + ' ')
                 else:
                     out_file.write(line)
+            out_file.write('\n')
     return exp_filename
 
 

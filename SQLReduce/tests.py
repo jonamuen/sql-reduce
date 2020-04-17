@@ -3,7 +3,8 @@ from itertools import combinations
 from lark import Tree, Token, Lark
 from lark import ParseError
 from utils import partial_equivalence
-from transformation import StatementRemover, PrettyPrinter, SimpleColumnRemover, ValueMinimizer, ExprSimplifier, TokenRemover, TokenRemoverNonConsec, CompoundSimplifier
+from transformation import StatementRemover, PrettyPrinter, SimpleColumnRemover, ValueMinimizer, ExprSimplifier, \
+    TokenRemover, TokenRemoverNonConsec, CompoundSimplifier, OptionalRemover
 from pathlib import Path
 from sql_parser import SQLParser
 from reducer import Reducer
@@ -400,6 +401,37 @@ class PrettyPrinterTest(unittest.TestCase):
         print(stmt1)
         print(self.printer.transform(tree))
         self.assertEqual(tree, self.parser.parse(self.printer.transform(tree)))
+
+
+class OptionalRemoverTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.parser = cls.parser = SQLParser('sql.lark', start='sql_stmt_list', debug=True, parser='lalr')
+        cls.pprinter = PrettyPrinter()
+
+    def test_from_clause(self):
+        stmt = "SELECT * FROM t0 WHERE c0 > c1;"
+        tree = self.parser.parse(stmt)
+        orm = OptionalRemover(remove_index=0)
+        result = orm.transform(tree)
+
+        expected = "SELECT * WHERE c0 > c1;"
+        self.assertEqual(expected, self.pprinter.transform(result))
+
+    def test_where_clause(self):
+        stmt = "SELECT * FROM t0 WHERE c0 > c1;"
+        tree = self.parser.parse(stmt)
+        orm = OptionalRemover(remove_index=1)
+        result = orm.transform(tree)
+
+        expected = "SELECT * FROM t0;"
+        self.assertEqual(expected, self.pprinter.transform(result))
+
+    def test_all_transforms(self):
+        stmt = "SELECT * FROM t0 WHERE c0 > c1 UNION ALL SELECT c0 FROM t0;"
+        tree = self.parser.parse(stmt)
+        orm = OptionalRemover()
+        self.assertEqual(4, len(list(orm.all_transforms(tree))))
 
 
 class SimpleColumnRemoverTest(unittest.TestCase):
