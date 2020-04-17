@@ -9,7 +9,7 @@ sql_stmt: select_stmt_full
         | delete_stmt
 
 // add WITH
-select_stmt_full: (k_with column_name k_as LPAREN select_stmt_helper RPAREN)? select_stmt_helper
+select_stmt_full: with_clause? select_stmt_helper
 
 select_stmt_helper: select_stmt_helper compound_operator select_stmt | select_stmt
 select_stmt.1: k_select k_distinct? subquery_or_expr_list from_clause? \
@@ -45,6 +45,8 @@ ERR.0: /.+?/
 subquery_or_expr_list: subquery_or_expr_as ("," subquery_or_expr_as)*
 
 subquery_or_expr_as: k_all? expr (k_as NAME)?
+
+with_clause: k_with k_recursive? column_name k_as LPAREN select_stmt_helper RPAREN
 
 // TODO: expr not allowed here
 from_clause: k_from subquery_or_expr_as join_clause*
@@ -162,6 +164,7 @@ compound_operator: (k_union k_all?) | k_intersect | k_except
 !k_avg: "AVG" | "avg"
 !k_total: "TOTAL" | "total"
 !k_count: "COUNT" | "count"
+!k_recursive: "RECURSIVE" | "recursive"
 
 PLUS: "+"
 MINUS: "-"
