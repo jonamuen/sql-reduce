@@ -9,7 +9,12 @@ import logging
 from time import time
 
 
-class AbstractTransformationsIterator:
+class Transformable:
+    def transform(self, tree):
+        raise NotImplementedError
+
+
+class AbstractTransformationsIterator(Transformable):
     """
     The all_transforms method should yield all transformations that can be
     performed by a given reducer. The parameter progress is used to resume
@@ -17,8 +22,27 @@ class AbstractTransformationsIterator:
     reduction opportunities are attempted for each invocation of all_transforms,
     while later reduction opportunities are never reached.
     """
-    def all_transforms(self, tree: Tree, progress: int = 0) -> Iterator[Tuple[int, Tree]]:
+
+    def __init__(self):
+        self.num_actions = 0
+
+    def gen_action_items(self, tree):
         raise NotImplementedError
+
+    def set_up(self, item):
+        raise NotImplementedError
+
+    def all_transforms(self, tree: Tree, progress: int = 0) -> Iterator[Tuple[int, Tree]]:
+        skipped = []
+        for i, item in enumerate(self.gen_action_items(tree)):
+            if i < progress:
+                skipped.append(item)
+                continue
+            self.set_up(item)
+            yield i, self.transform(tree)
+        for i, item in enumerate(skipped):
+            self.set_up(item)
+            yield i, self.transform(tree)
 
 
 class PrettyPrinter(Transformer):
@@ -92,6 +116,7 @@ class StatementRemover(AbstractTransformationsIterator):
     :param: max_iterations: all_transforms yields at most this many reductions
     """
     def __init__(self, remove_indices=None, max_iterations=None):
+        super().__init__()
         if remove_indices is None:
             remove_indices = []
         self.remove_indices = remove_indices
@@ -114,6 +139,22 @@ class StatementRemover(AbstractTransformationsIterator):
             else:
                 new_children.append(c)
         return Tree('sql_stmt_list', new_children, tree.meta)
+
+    def gen_action_items(self, tree):
+        num_stmt = len(tree.children)
+        num_iterations = 0
+        block_size = num_stmt
+        while block_size >= 1:
+            if num_iterations == self.max_iterations:
+                break
+            for i in range(num_stmt // block_size):
+                if num_iterations == self.max_iterations:
+                    break
+                yield [x for x in range(i * block_size, (i + 1) * block_size)]
+            block_size = block_size // 2
+
+    def set_up(self, item):
+        self.remove_indices = item
 
     def all_transforms(self, tree, progress=0):
         """
@@ -240,6 +281,7 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
     :param remove_index: index of the column that should be removed.
     """
     def __init__(self, remove_index=-1):
+        super().__init__()
         self.remove_index = remove_index
         self._num_column_refs = 0
 
