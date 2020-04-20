@@ -39,6 +39,7 @@ class AbstractTransformationsIterator(Transformable):
         self.index = 0
 
     def all_transforms(self, tree: Tree, progress: int = 0) -> Iterator[Tuple[int, Tree]]:
+        # TODO: turn multi_remove flag into more general strategy-hint, e.g. {single, aggressive, consecutive(k)}
         if not self.multi_remove:
             logging.info("Running without multiremove")
             skipped = []
@@ -46,10 +47,10 @@ class AbstractTransformationsIterator(Transformable):
                 if i < progress:
                     skipped.append(item)
                     continue
-                self.set_up(item)
+                self.set_up([item])
                 yield i, self.transform(tree)
             for i, item in enumerate(skipped):
-                self.set_up(item)
+                self.set_up([item])
                 yield i, self.transform(tree)
         else:
             logging.info("Running with multiremove")
@@ -256,7 +257,7 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
         c0 is at index 2.
         c2 is at index 3.
 
-    :param remove_index: index of the column that should be removed.
+    :param remove_list: list of indices of columns that should be removed.
     """
     def _default(self, tree):
         return NamedTree(tree.data, list(map(self.transform, tree.children)))
@@ -594,6 +595,18 @@ class TokenRemover(Transformer, AbstractTransformationsIterator):
             for i, num_options in enumerate(self.num_options_per_stmt):
                 for j in range(num_options - num_consec + 1):
                     yield [(i, x) for x in range(j, j + num_consec)]
+
+    def all_transforms(self, tree: Tree, progress: int = 0) -> Iterator[Tuple[int, Tree]]:
+        skipped = []
+        for i, param in enumerate(self.gen_reduction_params(tree)):
+            if i < progress:
+                skipped.append(param)
+                continue
+            self.set_up(param)
+            yield i, self.transform(tree)
+        for i, param in enumerate(skipped):
+            self.set_up(param)
+            yield i, self.transform(tree)
 
 
 class TokenRemoverNonConsec(TokenRemover):
