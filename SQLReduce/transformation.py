@@ -142,6 +142,7 @@ class StatementRemover(AbstractTransformationsIterator):
     def gen_reduction_params(self, tree):
         num_stmt = len(tree.children)
         block_size = num_stmt
+        self.num_actions = num_stmt
         while block_size >= 1:
             for i in range(num_stmt // block_size):
                 yield [x for x in range(i * block_size, (i + 1) * block_size)]
@@ -169,6 +170,10 @@ class ValueMinimizer(Transformer):
 
 
 class ExprSimplifier(Transformer, AbstractTransformationsIterator):
+    def __init__(self, remove_list=None):
+        Transformer.__init__(self)
+        AbstractTransformationsIterator.__init__(self, remove_list)
+
     def expr(self, children):
         new_children = [c for c in children]
         local_remove_list = []
@@ -218,7 +223,7 @@ class ExprSimplifier(Transformer, AbstractTransformationsIterator):
     def gen_reduction_params(self, tree):
         _ = self.transform(tree)
         for i in range(0, self.index):
-            yield i
+            yield [i]
 
 
 class SimpleColumnRemover(AbstractTransformationsIterator):
