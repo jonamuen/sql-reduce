@@ -575,19 +575,19 @@ class ExprSimplifierTest(unittest.TestCase):
         tree = self.parser.parse("SELECT NOT c0 + c1 * c2 FROM t0;")
         for _, x in self.simplifier.all_transforms(tree):
             print(PrettyPrinter().transform(x))
-        print(self.simplifier._num_reduction_opportunities)
+        print(self.simplifier.index)
 
     def test_2(self):
         tree = self.parser.parse("SELECT NULLIF(c0 + c1, c0 - c1) FROM t0;")
         for _, x in self.simplifier.all_transforms(tree):
             print(PrettyPrinter().transform(x))
-        print(self.simplifier._num_reduction_opportunities)
+        print(self.simplifier.index)
 
     def test_3(self):
         tree = self.parser.parse("SELECT CAST(c0 * c1 AS INT) FROM t0;")
         for _, x in self.simplifier.all_transforms(tree):
             print(PrettyPrinter().transform(x))
-        print(self.simplifier._num_reduction_opportunities)
+        print(self.simplifier.index)
 
 
 class ValueMinimizerTest(unittest.TestCase):
