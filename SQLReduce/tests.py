@@ -512,10 +512,9 @@ class SimpleColumnRemoverTest(unittest.TestCase):
             "INSERT INTO t0 (c0, c2) VALUES (0, 2), (2, 0);",
             "INSERT INTO t0 (c0, c1) VALUES (0, 1), (2, 1);"
         ]
-        results = self.scrm.all_transforms(self.parser.parse(stmt))
-        for exp, res in zip(expected, results):
-            _, res = res
-            self.assertEqual(self.parser.parse(exp), res)
+        results = list(map(lambda x: x[1], self.scrm.all_transforms(self.parser.parse(stmt))))
+        for exp in expected:
+            self.assertIn(self.parser.parse(exp), results)
 
 
 class CompoundSimplifierTest(unittest.TestCase):

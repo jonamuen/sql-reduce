@@ -23,12 +23,13 @@ class AbstractTransformationsIterator(Transformable):
     while later reduction opportunities are never reached.
     """
 
-    def __init__(self, remove_list=None):
+    def __init__(self, remove_list=None, multi_remove=True):
         self.num_actions = 0
         self.index = 0
         if remove_list is None:
             remove_list = []
         self.remove_list = remove_list
+        self.multi_remove = multi_remove
 
     def gen_reduction_params(self, tree):
         raise NotImplementedError
@@ -38,16 +39,34 @@ class AbstractTransformationsIterator(Transformable):
         self.index = 0
 
     def all_transforms(self, tree: Tree, progress: int = 0) -> Iterator[Tuple[int, Tree]]:
-        skipped = []
-        for i, item in enumerate(self.gen_reduction_params(tree)):
-            if i < progress:
-                skipped.append(item)
-                continue
-            self.set_up(item)
-            yield i, self.transform(tree)
-        for i, item in enumerate(skipped):
-            self.set_up(item)
-            yield i, self.transform(tree)
+        if not self.multi_remove:
+            logging.info("Running without multiremove")
+            skipped = []
+            for i, item in enumerate(self.gen_reduction_params(tree)):
+                if i < progress:
+                    skipped.append(item)
+                    continue
+                self.set_up(item)
+                yield i, self.transform(tree)
+            for i, item in enumerate(skipped):
+                self.set_up(item)
+                yield i, self.transform(tree)
+        else:
+            logging.info("Running with multiremove")
+            reduction_params = list(self.gen_reduction_params(tree))
+            block_size = len(reduction_params)
+            self.num_actions = len(reduction_params)
+            while block_size >= 1:
+                num_blocks = len(reduction_params) // block_size
+                # check if there is an extra block at the end
+                if len(reduction_params) % block_size != 0:
+                    num_blocks += 1
+                for i in range(num_blocks):
+                    logging.info(reduction_params)
+                    self.set_up(reduction_params[i * block_size: (i + 1) * block_size])
+                    logging.info(f"Set up with: {self.remove_list}")
+                    yield 0, self.transform(tree)
+                block_size = block_size // 2
 
 
 class PrettyPrinter(Transformer):
@@ -120,6 +139,8 @@ class StatementRemover(AbstractTransformationsIterator):
     :param: remove_indices: list or set of integers. Overwritten by all_transforms
     :param: max_iterations: all_transforms yields at most this many reductions
     """
+    def __init__(self, remove_list=None, multi_remove=False):
+        AbstractTransformationsIterator.__init__(self, remove_list=remove_list, multi_remove=False)
 
     def transform(self, tree: Tree) -> Tree:
         """
@@ -170,9 +191,9 @@ class ValueMinimizer(Transformer):
 
 
 class ExprSimplifier(Transformer, AbstractTransformationsIterator):
-    def __init__(self, remove_list=None):
+    def __init__(self, remove_list=None, multi_remove=True):
         Transformer.__init__(self)
-        AbstractTransformationsIterator.__init__(self, remove_list=remove_list)
+        AbstractTransformationsIterator.__init__(self, remove_list=remove_list, multi_remove=multi_remove)
 
     def expr(self, children):
         new_children = [c for c in children]
@@ -224,7 +245,7 @@ class ExprSimplifier(Transformer, AbstractTransformationsIterator):
         self.set_up([])
         _ = self.transform(tree)
         for i in range(0, self.index):
-            yield [i]
+            yield i
 
 
 class SimpleColumnRemover(AbstractTransformationsIterator):
@@ -334,16 +355,16 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
         self.set_up([])
         _ = self.transform(tree)
         for i in range(self.index):
-            yield [i]
+            yield i
 
 
 class CompoundSimplifier(Transformer, AbstractTransformationsIterator):
     """
     Simplify compound expressions (UNION, INTERSECT, EXCEPT).
     """
-    def __init__(self, remove_list=None):
+    def __init__(self, remove_list=None, multi_remove=True):
         Transformer.__init__(self)
-        AbstractTransformationsIterator.__init__(self, remove_list=remove_list)
+        AbstractTransformationsIterator.__init__(self, remove_list=remove_list, multi_remove=multi_remove)
     @v_args(meta=True)
     def select_stmt_helper(self, children, meta):
         tree = NamedTree('select_stmt_helper', children, meta)
@@ -375,7 +396,7 @@ class CompoundSimplifier(Transformer, AbstractTransformationsIterator):
         self.set_up([])
         _ = self.transform(tree)
         for i in range(self.index):
-            yield [i]
+            yield i
 
 
 class OptionalFinder(Transformer):
@@ -423,8 +444,9 @@ class OptionalFinder(Transformer):
 
 
 class OptionalRemover(Transformer, AbstractTransformationsIterator):
-    def __init__(self, remove_index = 0, optionals=None):
-        super().__init__()
+    def __init__(self, remove_index = 0, multi_remove=False, optionals=None):
+        Transformer.__init__(self)
+        AbstractTransformationsIterator.__init__(self, multi_remove=False)
         if optionals is None:
             optionals = dict()
         self.optionals = optionals
@@ -469,8 +491,8 @@ class ListItemRemover(AbstractTransformationsIterator):
     Simultaneously remove multiple items from list expressions in an unexpected
     statement.
     """
-    def __init__(self, remove_index=(0, 0)):
-        super().__init__()
+    def __init__(self, remove_index=(0, 0), multi_remove=True):
+        super().__init__(multi_remove=multi_remove)
         self.remove_index = remove_index
         self.stmt_index = -1
         self.list_expr_max_length = []
@@ -521,8 +543,9 @@ class ListItemRemover(AbstractTransformationsIterator):
 
 
 class TokenRemover(Transformer, AbstractTransformationsIterator):
-    def __init__(self, remove_indices=None):
-        super().__init__()
+    def __init__(self, remove_indices=None, multi_remove=False):
+        Transformer.__init__(self)
+        AbstractTransformationsIterator.__init__(self, multi_remove=False)
         if remove_indices is None:
             remove_indices = []
         self.remove_indices = remove_indices
