@@ -139,8 +139,8 @@ class StatementRemover(AbstractTransformationsIterator):
     :param: remove_indices: list or set of integers. Overwritten by all_transforms
     :param: max_iterations: all_transforms yields at most this many reductions
     """
-    def __init__(self, remove_list=None, multi_remove=False):
-        AbstractTransformationsIterator.__init__(self, remove_list=remove_list, multi_remove=False)
+    def __init__(self, remove_list=None, multi_remove=True):
+        AbstractTransformationsIterator.__init__(self, remove_list=remove_list, multi_remove=True)
 
     def transform(self, tree: Tree) -> Tree:
         """
@@ -161,13 +161,8 @@ class StatementRemover(AbstractTransformationsIterator):
         return Tree('sql_stmt_list', new_children, tree.meta)
 
     def gen_reduction_params(self, tree):
-        num_stmt = len(tree.children)
-        block_size = num_stmt
-        self.num_actions = num_stmt
-        while block_size >= 1:
-            for i in range(num_stmt // block_size):
-                yield [x for x in range(i * block_size, (i + 1) * block_size)]
-            block_size = block_size // 2
+        for i in range(len(tree.children)):
+            yield i
 
 
 class ValueMinimizer(Transformer):
@@ -444,14 +439,12 @@ class OptionalFinder(Transformer):
 
 
 class OptionalRemover(Transformer, AbstractTransformationsIterator):
-    def __init__(self, remove_index = 0, multi_remove=False, optionals=None):
+    def __init__(self, remove_list=None, multi_remove=False, optionals=None):
         Transformer.__init__(self)
-        AbstractTransformationsIterator.__init__(self, multi_remove=False)
+        AbstractTransformationsIterator.__init__(self, remove_list=remove_list, multi_remove=True)
         if optionals is None:
             optionals = dict()
         self.optionals = optionals
-        self.remove_index = remove_index
-        self.index = 0
 
     def __default__(self, data, children, meta):
         try:
@@ -462,11 +455,11 @@ class OptionalRemover(Transformer, AbstractTransformationsIterator):
         remove_list = []
         for i, c in enumerate(children):
             if type(c) == Tree and c.data in removable:
-                if self.remove_index == self.index:
+                if self.index in self.remove_list:
                     remove_list.append(i)
                 self.index += 1
             elif type(c) == Token and c.value in removable:
-                if self.remove_index == self.index:
+                if self.index in self.remove_list:
                     remove_list.append(i)
                 self.index += 1
 
@@ -474,10 +467,6 @@ class OptionalRemover(Transformer, AbstractTransformationsIterator):
             del children[i]
 
         return Tree(data, children, meta)
-
-    def set_up(self, item):
-        self.remove_index = item
-        self.index = 0
 
     def gen_reduction_params(self, tree):
         self.set_up([])
