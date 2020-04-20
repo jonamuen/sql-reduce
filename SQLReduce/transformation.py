@@ -172,7 +172,7 @@ class ValueMinimizer(Transformer):
 class ExprSimplifier(Transformer, AbstractTransformationsIterator):
     def __init__(self, remove_list=None):
         Transformer.__init__(self)
-        AbstractTransformationsIterator.__init__(self, remove_list)
+        AbstractTransformationsIterator.__init__(self, remove_list=remove_list)
 
     def expr(self, children):
         new_children = [c for c in children]
@@ -341,12 +341,9 @@ class CompoundSimplifier(Transformer, AbstractTransformationsIterator):
     """
     Simplify compound expressions (UNION, INTERSECT, EXCEPT).
     """
-    def __init__(self, remove_index: int = 0):
-        super().__init__()
-        self.remove_index = remove_index
-        self.index = 0
-        self._num_reduction_opportunities = 0
-
+    def __init__(self, remove_list=None):
+        Transformer.__init__(self)
+        AbstractTransformationsIterator.__init__(self, remove_list=remove_list)
     @v_args(meta=True)
     def select_stmt_helper(self, children, meta):
         tree = NamedTree('select_stmt_helper', children, meta)
@@ -354,10 +351,10 @@ class CompoundSimplifier(Transformer, AbstractTransformationsIterator):
         if lhs:
             rhs = tree['select_stmt', 0]
             if rhs:
-                if self.remove_index == self.index:
+                if self.index in self.remove_list:
                     del tree.children[1]
                     del tree.children[0]
-                elif self.remove_index == self.index + 1:
+                elif self.index + 1 in self.remove_list:
                     del tree.children[2]
                     del tree.children[1]
                     tree.children = tree.children[0].children
@@ -374,16 +371,11 @@ class CompoundSimplifier(Transformer, AbstractTransformationsIterator):
             tree = NamedTreeConstructor().transform(tree)
         return super().transform(tree)
 
-    def set_up(self, item):
-        self.remove_index = item
-        self.index = 0
-        self._num_reduction_opportunities = 0
-
     def gen_reduction_params(self, tree):
         self.set_up([])
         _ = self.transform(tree)
         for i in range(self.index):
-            yield i
+            yield [i]
 
 
 class OptionalFinder(Transformer):
@@ -519,7 +511,7 @@ class ListItemRemover(AbstractTransformationsIterator):
         self.list_expr_max_length = []
 
     def gen_reduction_params(self, tree):
-        self.set_up([])
+        self.set_up((0, 0))
         _ = self.transform(tree)
         num_stmts = self.stmt_index + 1
         max_lengths = [x for x in self.list_expr_max_length]

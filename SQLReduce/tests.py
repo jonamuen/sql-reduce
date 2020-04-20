@@ -528,7 +528,7 @@ class CompoundSimplifierTest(unittest.TestCase):
         stmt = "SELECT c0 FROM t0 UNION SELECT c1 FROM t0;"
         expected = "SELECT c1 FROM t0;"
         tree = self.parser.parse(stmt)
-        compsimp = CompoundSimplifier(0)
+        compsimp = CompoundSimplifier([0])
         result = self.pprinter.transform(compsimp.transform(tree))
         self.assertEqual(expected, result)
 
@@ -536,7 +536,7 @@ class CompoundSimplifierTest(unittest.TestCase):
         stmt = "SELECT c0 FROM t0 UNION SELECT c1 FROM t0;"
         expected = "SELECT c0 FROM t0;"
         tree = self.parser.parse(stmt)
-        compsimp = CompoundSimplifier(1)
+        compsimp = CompoundSimplifier([1])
         result = self.pprinter.transform(compsimp.transform(tree))
         self.assertEqual(expected, result)
 
@@ -544,7 +544,7 @@ class CompoundSimplifierTest(unittest.TestCase):
         stmt = "SELECT c0 FROM t0 UNION ALL SELECT c1 FROM t0 UNION SELECT c2 FROM t0;"
         expected = "SELECT c0 FROM t0 UNION SELECT c2 FROM t0;"
         tree = self.parser.parse(stmt)
-        compsimp = CompoundSimplifier(1)
+        compsimp = CompoundSimplifier([1])
         result = self.pprinter.transform(compsimp.transform(tree))
         self.assertEqual(expected, result)
 
@@ -552,7 +552,7 @@ class CompoundSimplifierTest(unittest.TestCase):
         stmt = "SELECT c0, (SELECT c1 FROM t1 UNION SELECT c2 FROM t0) FROM t0;"
         expected = "SELECT c0, (SELECT c1 FROM t1) FROM t0;"
         tree = self.parser.parse(stmt)
-        compsimp = CompoundSimplifier(1)
+        compsimp = CompoundSimplifier([1])
         result = self.pprinter.transform(compsimp.transform(tree))
         self.assertEqual(expected, result)
 
