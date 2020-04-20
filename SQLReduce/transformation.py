@@ -448,7 +448,7 @@ class OptionalFinder(Transformer):
 
 class OptionalRemover(Transformer, AbstractTransformationsIterator):
     def all_transforms(self, tree: Tree, progress: int = 0) -> Iterator[Tuple[int, Tree]]:
-        self.__init__()
+        self.__init__(optionals=self.optionals)
         yield 0, self.transform(tree)
         num_reductions = self.index
         skipped = []
@@ -456,18 +456,18 @@ class OptionalRemover(Transformer, AbstractTransformationsIterator):
             if i < progress:
                 skipped.append(i)
                 continue
-            self.__init__(remove_index=i)
+            self.__init__(remove_index=i, optionals=self.optionals)
             yield i, self.transform(tree)
 
         for i in skipped:
-            self.__init__(remove_index=i)
+            self.__init__(remove_index=i, optionals=self.optionals)
             yield i, self.transform(tree)
 
     def __init__(self, remove_index = 0, optionals=None):
         super().__init__()
         if optionals is None:
             optionals = dict()
-        self.optionals = {'sql_stmt_list': set(), 'sql_stmt': set(), 'select_stmt_full': {'with_clause'}, 'select_stmt_helper': set(), 'select_stmt': {'k_distinct', 'limit_clause', 'offset_clause', 'from_clause', 'order_by_clause', 'where_clause'}, 'create_table_stmt': {'constraint'}, 'create_view_stmt': set(), 'insert_stmt': set(), 'upsert_stmt': set(), 'update_stmt': {'where_clause'}, 'delete_stmt': {'where_clause'}, 'column_list': set(), 'values_list': set(), 'value_tuple': set(), 'assign_list': set(), 'unexpected_stmt': set(), 'subquery_or_expr_list': set(), 'subquery_or_expr_as': {'k_all'}, 'with_clause': {'k_recursive'}, 'from_clause': set(), 'column_def_list': set(), 'column_def': {'constraint', 'sql_type'}, 'join_clause': set(), 'where_clause': set(), 'group_by_clause': set(), 'having_clause': set(), 'order_by_clause': set(), 'limit_clause': set(), 'offset_clause': set(), 'expr': {'k_not'}, 'expr_helper': {'expr', 'sql_type'}, 'agg_func': set(), 'case_list': set(), 'table_name': set(), 'column_name': set(), 'sql_type': set(), 'default_expr': {'NAME'}, 'constraint': set(), 'operator': set(), 'compound_operator': {'k_all'}, '!k_select': set(), '!k_update': set(), '!k_create': set(), '!k_table': set(), '!k_from': set(), '!k_on': set(), '!k_join': set(), '!k_where': set(), '!k_limit': set(), '!k_distinct': set(), '!k_as': set(), '!k_is': set(), '!k_or': set(), '!k_offset': set(), '!k_cast': set(), '!k_nullif': set(), '!k_insert': set(), '!k_into': set(), '!k_values': set(), '!k_set': set(), '!k_delete': set(), '!k_not': set(), '!k_and': set(), '!k_order': set(), '!k_by': set(), '!k_asc': set(), '!k_desc': set(), '!k_view': set(), '!k_coalesce': set(), '!k_exists': set(), '!k_case': set(), '!k_when': set(), '!k_then': set(), '!k_else': set(), '!k_end': set(), '!k_inner': set(), '!k_left': set(), '!k_right': set(), '!k_full': set(), '!k_outer': set(), '!k_with': set(), '!k_upsert': set(), '!k_min': set(), '!k_max': set(), '!k_all': set(), '!k_any': set(), '!k_union': set(), '!k_intersect': set(), '!k_except': set(), '!k_if': set(), '!k_default': set(), '!k_check': set(), '!k_group': set(), '!k_having': set(), '!k_sum': set(), '!k_avg': set(), '!k_total': set(), '!k_count': set(), '!k_recursive': set()}
+        self.optionals = optionals
         self.remove_index = remove_index
         self.index = 0
 
