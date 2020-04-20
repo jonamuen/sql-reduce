@@ -409,7 +409,7 @@ class OptionalRemoverTest(unittest.TestCase):
     def test_from_clause(self):
         stmt = "SELECT * FROM t0 WHERE c0 > c1;"
         tree = self.parser.parse(stmt)
-        orm = OptionalRemover(remove_index=0, optionals=self.optionals)
+        orm = OptionalRemover(remove_list=[0], optionals=self.optionals)
         result = orm.transform(tree)
 
         expected = "SELECT * WHERE c0 > c1;"
@@ -418,7 +418,7 @@ class OptionalRemoverTest(unittest.TestCase):
     def test_where_clause(self):
         stmt = "SELECT * FROM t0 WHERE c0 > c1;"
         tree = self.parser.parse(stmt)
-        orm = OptionalRemover(remove_index=1, optionals=self.optionals)
+        orm = OptionalRemover(remove_list=[1], optionals=self.optionals)
         result = orm.transform(tree)
 
         expected = "SELECT * FROM t0;"
@@ -428,7 +428,7 @@ class OptionalRemoverTest(unittest.TestCase):
         stmt = "SELECT * FROM t0 WHERE c0 > c1 UNION ALL SELECT c0 FROM t0;"
         tree = self.parser.parse(stmt)
         orm = OptionalRemover(optionals=self.optionals)
-        self.assertEqual(4, len(list(orm.all_transforms(tree))))
+        self.assertEqual(7, len(list(orm.all_transforms(tree))))
 
 
 class SimpleColumnRemoverTest(unittest.TestCase):
