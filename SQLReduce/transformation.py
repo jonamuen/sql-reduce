@@ -202,7 +202,7 @@ class ExprSimplifier(Transformer, AbstractTransformationsIterator):
                     remove_list += [0, 2, 3]
                 self._num_reduction_opportunities += 2
         else:
-            if children[0].type == 'LPAREN' and children[2].type == 'RPAREN':
+            if len(children) == 3 and children[0].type == 'LPAREN' and children[2].type == 'RPAREN':
                 if self.remove_index - self._num_reduction_opportunities == 0:
                     remove_list += [0, 2]
                 self._num_reduction_opportunities += 1
@@ -388,7 +388,7 @@ class CompoundSimplifier(Transformer, AbstractTransformationsIterator):
         if type(tree) != NamedTree:
             tree = NamedTreeConstructor().transform(tree)
         self.__init__(0)
-        yield self.transform(tree)
+        yield 0, self.transform(tree)
         self._num_reduction_opportunities = self.index
         skipped = []
         for i in range(1, self._num_reduction_opportunities):
@@ -396,10 +396,102 @@ class CompoundSimplifier(Transformer, AbstractTransformationsIterator):
                 skipped.append(i)
                 continue
             self.__init__(i)
-            yield self.transform(tree)
+            yield i, self.transform(tree)
         for i in skipped:
             self.__init__(i)
-            yield self.transform(tree)
+            yield i, self.transform(tree)
+
+
+class OptionalFinder(Transformer):
+    def __init__(self, t='?'):
+        super().__init__()
+        self.type = t
+
+    def expr(self, children):
+        optionals = set()
+        for i in range(len(children) - 1):
+            if type(children[i + 1]) == Token and children[i + 1].value == self.type:
+                if type(children[i]) == Tree and children[i].data == 'name':
+                    optionals.add(children[i].children[0].value)
+                elif type(children[i]) == Token:
+                    optionals.add(children[i].value)
+        return optionals
+
+    def expansion(self, children):
+        optionals = set()
+        for c in children:
+            if type(c) == set:
+                optionals = optionals | c
+        return optionals
+
+    def expansions(self, children):
+        optionals = set()
+        for c in children:
+            if type(c) == set:
+                optionals = optionals | c
+        return optionals
+
+    def rule(self, children):
+        rule_name = children[0].value
+        for c in children:
+            if type(c) == set:
+                return rule_name, c
+        return rule_name, set()
+
+    def start(self, children):
+        optionals = dict()
+        for c in children:
+            if type(c) == tuple:
+                optionals[c[0]] = c[1]
+        return optionals
+
+
+class OptionalRemover(Transformer, AbstractTransformationsIterator):
+    def all_transforms(self, tree: Tree, progress: int = 0) -> Iterator[Tuple[int, Tree]]:
+        self.__init__(optionals=self.optionals)
+        yield 0, self.transform(tree)
+        num_reductions = self.index
+        skipped = []
+        for i in range(1, num_reductions):
+            if i < progress:
+                skipped.append(i)
+                continue
+            self.__init__(remove_index=i, optionals=self.optionals)
+            yield i, self.transform(tree)
+
+        for i in skipped:
+            self.__init__(remove_index=i, optionals=self.optionals)
+            yield i, self.transform(tree)
+
+    def __init__(self, remove_index = 0, optionals=None):
+        super().__init__()
+        if optionals is None:
+            optionals = dict()
+        self.optionals = optionals
+        self.remove_index = remove_index
+        self.index = 0
+
+    def __default__(self, data, children, meta):
+        try:
+            removable = self.optionals[data]
+        except KeyError:
+            removable = set()
+
+        remove_list = []
+        for i, c in enumerate(children):
+            if type(c) == Tree and c.data in removable:
+                if self.remove_index == self.index:
+                    remove_list.append(i)
+                self.index += 1
+            elif type(c) == Token and c.value in removable:
+                if self.remove_index == self.index:
+                    remove_list.append(i)
+                self.index += 1
+
+        for i in remove_list[::-1]:
+            del children[i]
+
+        return Tree(data, children, meta)
 
 
 class ListItemRemover(AbstractTransformationsIterator):
