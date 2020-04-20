@@ -327,10 +327,6 @@ class DiscardTest(unittest.TestCase):
                                      "SELECT c0 FROM t0;")
         self.assertEqual(expected, srm.transform(self.tree))
 
-    def test_complexity(self):
-        srm = StatementRemover(max_iterations=4)
-        self.assertGreaterEqual(4, len(list(srm.all_transforms(self.tree))))
-
     def test_remove_exhaustive(self):
         """
         Try all combinations except removing nothing and removing everything.
@@ -438,14 +434,14 @@ class OptionalRemoverTest(unittest.TestCase):
 class SimpleColumnRemoverTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.scrm = SimpleColumnRemover(1)
+        cls.scrm = SimpleColumnRemover()
         cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
         cls.pprinter = PrettyPrinter()
 
     def test_simple(self):
         stmt = "INSERT INTO t0(c0, c1, c2) VALUES (0, 1, 2), (2, 1, 0);"
         tree = self.parser.parse(stmt)
-        self.scrm.remove_index = 1
+        self.scrm.set_up([1])
         result = self.scrm.transform(tree)
         expected = "INSERT INTO t0 (c0, c2) VALUES (0, 2), (2, 0);"
         print(self.pprinter.transform(result))
@@ -455,7 +451,7 @@ class SimpleColumnRemoverTest(unittest.TestCase):
         stmt = "CREATE TABLE t0 (c0 INT);" \
                "INSERT INTO t0 VALUES (0);" \
                "UPDATE t0 SET c0=0;"
-        self.scrm.remove_index = -1  # dont remove anything
+        self.scrm.set_up([-1])  # dont remove anything
         tree = self.parser.parse(stmt)
         result = self.scrm.transform(tree)
         self.assertEqual(self.parser.parse(stmt), tree)
@@ -465,14 +461,14 @@ class SimpleColumnRemoverTest(unittest.TestCase):
         stmt = "CREATE TABLE t0 (c0 INT);" \
                "INSERT INTO t0 VALUES (0);" \
                "UPDATE t0 SET c0=0;"
-        self.scrm.remove_index = -1 # dont remove anything, just count
+        self.scrm.set_up([-1]) # dont remove anything, just count
         tree = self.parser.parse(stmt)
         self.scrm.transform(tree)
-        self.assertEqual(3, self.scrm._num_column_refs)
+        self.assertEqual(3, self.scrm.index)
 
     def test_create_table(self):
         stmt = "CREATE TABLE t0 (c0 INT, c1 INT);"
-        self.scrm.remove_index = 1
+        self.scrm.set_up([1])
         tree = self.parser.parse(stmt)
         result = self.scrm.transform(tree)
         expected = self.parser.parse("CREATE TABLE t0 (c0 INT);")
@@ -480,13 +476,13 @@ class SimpleColumnRemoverTest(unittest.TestCase):
 
     def test_no_inserts(self):
         stmt = "SELECT c0, c1 FROM t0;"
-        self.scrm.remove_index = 0
+        self.scrm.set_up([0])
         result = self.scrm.transform(self.parser.parse(stmt))
         self.assertEqual(self.parser.parse(stmt), result)
 
     def test_no_explicit_column_refs(self):
         stmt = "INSERT INTO t0 VALUES (0, 1, 2);"
-        self.scrm.remove_index = 0
+        self.scrm.set_up([0])
         result = self.scrm.transform(self.parser.parse(stmt))
         expected = "INSERT INTO t0 VALUES (1, 2);"
         self.assertEqual(self.parser.parse(expected), result)
@@ -495,7 +491,7 @@ class SimpleColumnRemoverTest(unittest.TestCase):
         stmt = "INSERT INTO t0(c0, c1, c2) VALUES (0, 1, 2), (2, 1, 0);" \
                "INSERT INTO t1(c0, c1) VALUES (3, 4);"
         tree = self.parser.parse(stmt)
-        self.scrm.remove_index = 3
+        self.scrm.set_up([3])
         result = self.scrm.transform(tree)
         expected = "INSERT INTO t0 (c0, c1, c2) VALUES (0, 1, 2), (2, 1, 0); " \
                    "INSERT INTO t1 (c1) VALUES (4);"
@@ -505,7 +501,7 @@ class SimpleColumnRemoverTest(unittest.TestCase):
     def test_update(self):
         stmt = "UPDATE t0 SET c0=0, c1=1;"
         tree = self.parser.parse(stmt)
-        self.scrm.remove_index = 1
+        self.scrm.set_up([1])
         result = self.scrm.transform(tree)
         expected = self.parser.parse("UPDATE t0 SET c0=0;")
         self.assertEqual(expected, result)
@@ -517,10 +513,9 @@ class SimpleColumnRemoverTest(unittest.TestCase):
             "INSERT INTO t0 (c0, c2) VALUES (0, 2), (2, 0);",
             "INSERT INTO t0 (c0, c1) VALUES (0, 1), (2, 1);"
         ]
-        results = self.scrm.all_transforms(self.parser.parse(stmt))
-        for exp, res in zip(expected, results):
-            _, res = res
-            self.assertEqual(self.parser.parse(exp), res)
+        results = list(map(lambda x: x[1], self.scrm.all_transforms(self.parser.parse(stmt))))
+        for exp in expected:
+            self.assertIn(self.parser.parse(exp), results)
 
 
 class CompoundSimplifierTest(unittest.TestCase):
@@ -533,7 +528,7 @@ class CompoundSimplifierTest(unittest.TestCase):
         stmt = "SELECT c0 FROM t0 UNION SELECT c1 FROM t0;"
         expected = "SELECT c1 FROM t0;"
         tree = self.parser.parse(stmt)
-        compsimp = CompoundSimplifier(0)
+        compsimp = CompoundSimplifier([0])
         result = self.pprinter.transform(compsimp.transform(tree))
         self.assertEqual(expected, result)
 
@@ -541,7 +536,7 @@ class CompoundSimplifierTest(unittest.TestCase):
         stmt = "SELECT c0 FROM t0 UNION SELECT c1 FROM t0;"
         expected = "SELECT c0 FROM t0;"
         tree = self.parser.parse(stmt)
-        compsimp = CompoundSimplifier(1)
+        compsimp = CompoundSimplifier([1])
         result = self.pprinter.transform(compsimp.transform(tree))
         self.assertEqual(expected, result)
 
@@ -549,7 +544,7 @@ class CompoundSimplifierTest(unittest.TestCase):
         stmt = "SELECT c0 FROM t0 UNION ALL SELECT c1 FROM t0 UNION SELECT c2 FROM t0;"
         expected = "SELECT c0 FROM t0 UNION SELECT c2 FROM t0;"
         tree = self.parser.parse(stmt)
-        compsimp = CompoundSimplifier(1)
+        compsimp = CompoundSimplifier([1])
         result = self.pprinter.transform(compsimp.transform(tree))
         self.assertEqual(expected, result)
 
@@ -557,7 +552,7 @@ class CompoundSimplifierTest(unittest.TestCase):
         stmt = "SELECT c0, (SELECT c1 FROM t1 UNION SELECT c2 FROM t0) FROM t0;"
         expected = "SELECT c0, (SELECT c1 FROM t1) FROM t0;"
         tree = self.parser.parse(stmt)
-        compsimp = CompoundSimplifier(1)
+        compsimp = CompoundSimplifier([1])
         result = self.pprinter.transform(compsimp.transform(tree))
         self.assertEqual(expected, result)
 
@@ -580,19 +575,19 @@ class ExprSimplifierTest(unittest.TestCase):
         tree = self.parser.parse("SELECT NOT c0 + c1 * c2 FROM t0;")
         for _, x in self.simplifier.all_transforms(tree):
             print(PrettyPrinter().transform(x))
-        print(self.simplifier._num_reduction_opportunities)
+        print(self.simplifier.index)
 
     def test_2(self):
         tree = self.parser.parse("SELECT NULLIF(c0 + c1, c0 - c1) FROM t0;")
         for _, x in self.simplifier.all_transforms(tree):
             print(PrettyPrinter().transform(x))
-        print(self.simplifier._num_reduction_opportunities)
+        print(self.simplifier.index)
 
     def test_3(self):
         tree = self.parser.parse("SELECT CAST(c0 * c1 AS INT) FROM t0;")
         for _, x in self.simplifier.all_transforms(tree):
             print(PrettyPrinter().transform(x))
-        print(self.simplifier._num_reduction_opportunities)
+        print(self.simplifier.index)
 
 
 class ValueMinimizerTest(unittest.TestCase):
