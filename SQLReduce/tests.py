@@ -327,10 +327,6 @@ class DiscardTest(unittest.TestCase):
                                      "SELECT c0 FROM t0;")
         self.assertEqual(expected, srm.transform(self.tree))
 
-    def test_complexity(self):
-        srm = StatementRemover(max_iterations=4)
-        self.assertGreaterEqual(4, len(list(srm.all_transforms(self.tree))))
-
     def test_remove_exhaustive(self):
         """
         Try all combinations except removing nothing and removing everything.

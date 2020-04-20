@@ -115,12 +115,11 @@ class StatementRemover(AbstractTransformationsIterator):
     :param: remove_indices: list or set of integers. Overwritten by all_transforms
     :param: max_iterations: all_transforms yields at most this many reductions
     """
-    def __init__(self, remove_indices=None, max_iterations=None):
+    def __init__(self, remove_indices=None):
         super().__init__()
         if remove_indices is None:
             remove_indices = []
         self.remove_indices = remove_indices
-        self.max_iterations = max_iterations
 
     def transform(self, tree: Tree) -> Tree:
         """
@@ -142,14 +141,9 @@ class StatementRemover(AbstractTransformationsIterator):
 
     def gen_action_items(self, tree):
         num_stmt = len(tree.children)
-        num_iterations = 0
         block_size = num_stmt
         while block_size >= 1:
-            if num_iterations == self.max_iterations:
-                break
             for i in range(num_stmt // block_size):
-                if num_iterations == self.max_iterations:
-                    break
                 yield [x for x in range(i * block_size, (i + 1) * block_size)]
             block_size = block_size // 2
 
