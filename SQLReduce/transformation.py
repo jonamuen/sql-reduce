@@ -221,6 +221,7 @@ class ExprSimplifier(Transformer, AbstractTransformationsIterator):
         return Transformer.transform(self, tree)
 
     def gen_reduction_params(self, tree):
+        self.set_up([])
         _ = self.transform(tree)
         for i in range(0, self.index):
             yield [i]
