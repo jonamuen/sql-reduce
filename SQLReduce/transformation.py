@@ -23,18 +23,23 @@ class AbstractTransformationsIterator(Transformable):
     while later reduction opportunities are never reached.
     """
 
-    def __init__(self):
+    def __init__(self, remove_list=None):
         self.num_actions = 0
+        self.index = 0
+        if remove_list is None:
+            remove_list = []
+        self.remove_list = remove_list
 
-    def gen_action_items(self, tree):
+    def gen_reduction_params(self, tree):
         raise NotImplementedError
 
-    def set_up(self, item):
-        raise NotImplementedError
+    def set_up(self, remove_list):
+        self.remove_list = remove_list
+        self.index = 0
 
     def all_transforms(self, tree: Tree, progress: int = 0) -> Iterator[Tuple[int, Tree]]:
         skipped = []
-        for i, item in enumerate(self.gen_action_items(tree)):
+        for i, item in enumerate(self.gen_reduction_params(tree)):
             if i < progress:
                 skipped.append(item)
                 continue
@@ -115,11 +120,6 @@ class StatementRemover(AbstractTransformationsIterator):
     :param: remove_indices: list or set of integers. Overwritten by all_transforms
     :param: max_iterations: all_transforms yields at most this many reductions
     """
-    def __init__(self, remove_indices=None):
-        super().__init__()
-        if remove_indices is None:
-            remove_indices = []
-        self.remove_indices = remove_indices
 
     def transform(self, tree: Tree) -> Tree:
         """
@@ -128,27 +128,24 @@ class StatementRemover(AbstractTransformationsIterator):
         :return:
         """
         assert tree.data == 'sql_stmt_list'
-        self.remove_indices.sort()
+        self.remove_list.sort()
         new_children = []
         i = 0  # index into self.remove_indices
         # iterate over children, only copying those that remain
         for j, c in enumerate(tree.children):
-            if i < len(self.remove_indices) and j == self.remove_indices[i]:
+            if i < len(self.remove_list) and j == self.remove_list[i]:
                 i += 1
             else:
                 new_children.append(c)
         return Tree('sql_stmt_list', new_children, tree.meta)
 
-    def gen_action_items(self, tree):
+    def gen_reduction_params(self, tree):
         num_stmt = len(tree.children)
         block_size = num_stmt
         while block_size >= 1:
             for i in range(num_stmt // block_size):
                 yield [x for x in range(i * block_size, (i + 1) * block_size)]
             block_size = block_size // 2
-
-    def set_up(self, item):
-        self.remove_indices = item
 
 
 class ValueMinimizer(Transformer):
@@ -172,64 +169,55 @@ class ValueMinimizer(Transformer):
 
 
 class ExprSimplifier(Transformer, AbstractTransformationsIterator):
-    def __init__(self, remove_index=-1):
-        super().__init__()
-        self.remove_index = remove_index
-        self._num_reduction_opportunities = 0
-
     def expr(self, children):
         new_children = [c for c in children]
-        remove_list = []
+        local_remove_list = []
         offset = 0
         if children[0].data == "k_not":
             offset = 1
-            if self.remove_index - self._num_reduction_opportunities == 0:
-                remove_list.append(0)
-            self._num_reduction_opportunities += 1
+            if self.index in self.remove_list:
+                local_remove_list.append(0)
+            self.index += 1
         if len(children) > 2:
-            if self.remove_index - self._num_reduction_opportunities == 0:
-                remove_list += [offset+1, offset+2]
-            elif self.remove_index - self._num_reduction_opportunities == 1:
+            if self.index in self.remove_list:
+                local_remove_list += [offset+1, offset+2]
+            elif self.index + 1 in self.remove_list:
                 new_children[-1:] = new_children[-1].children
-                remove_list += [offset, offset+1]
-            self._num_reduction_opportunities += 2
-        for i in remove_list[::-1]:
+                local_remove_list += [offset, offset+1]
+            self.index += 2
+        for i in local_remove_list[::-1]:
             del new_children[i]
         return Tree("expr", new_children)
 
     def expr_helper(self, children):
-        remove_list = []
+        local_remove_list = []
         new_children = [c for c in children]
         if issubclass(type(children[0]), Tree):
             if children[0].data == "k_cast":
-                if self.remove_index - self._num_reduction_opportunities == 0:
-                    remove_list += [0, 3, 4]
-                self._num_reduction_opportunities += 1
+                if self.index in self.remove_list:
+                    local_remove_list += [0, 3, 4]
+                self.index += 1
             elif children[0].data == "k_nullif":
-                if self.remove_index - self._num_reduction_opportunities == 0:
-                    remove_list += [0, 3, 4]
-                elif self.remove_index - self._num_reduction_opportunities == 1:
-                    remove_list += [0, 2, 3]
-                self._num_reduction_opportunities += 2
+                if self.index in self.remove_list:
+                    local_remove_list += [0, 3, 4]
+                elif self.index + 1 in self.remove_list:
+                    local_remove_list += [0, 2, 3]
+                self.index += 2
         else:
             if len(children) == 3 and children[0].type == 'LPAREN' and children[2].type == 'RPAREN':
-                if self.remove_index - self._num_reduction_opportunities == 0:
-                    remove_list += [0, 2]
-                self._num_reduction_opportunities += 1
-        for i in remove_list[::-1]:
+                if self.index in self.remove_list:
+                    local_remove_list += [0, 2]
+                self.index += 1
+        for i in local_remove_list[::-1]:
             del new_children[i]
         return Tree("expr_helper", new_children)
 
     def transform(self, tree):
-        self._num_reduction_opportunities = 0
         return Transformer.transform(self, tree)
 
-    def set_up(self, item):
-        self.remove_index = item
-
-    def gen_action_items(self, tree):
+    def gen_reduction_params(self, tree):
         _ = self.transform(tree)
-        for i in range(1, self._num_reduction_opportunities):
+        for i in range(0, self.index):
             yield i
 
 
@@ -335,7 +323,7 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
     def set_up(self, item):
         self.remove_index = item
 
-    def gen_action_items(self, tree):
+    def gen_reduction_params(self, tree):
         _ = self.transform(tree)
         for i in range(self._num_column_refs):
             yield i
@@ -383,7 +371,7 @@ class CompoundSimplifier(Transformer, AbstractTransformationsIterator):
         self.index = 0
         self._num_reduction_opportunities = 0
 
-    def gen_action_items(self, tree):
+    def gen_reduction_params(self, tree):
         _ = self.transform(tree)
         for i in range(self.index):
             yield i
@@ -468,7 +456,7 @@ class OptionalRemover(Transformer, AbstractTransformationsIterator):
         self.remove_index = item
         self.index = 0
 
-    def gen_action_items(self, tree):
+    def gen_reduction_params(self, tree):
         _ = self.transform(tree)
         for i in range(self.index):
             yield i
@@ -520,7 +508,7 @@ class ListItemRemover(AbstractTransformationsIterator):
         self.stmt_index = -1
         self.list_expr_max_length = []
 
-    def gen_action_items(self, tree):
+    def gen_reduction_params(self, tree):
         _ = self.transform(tree)
         num_stmts = self.stmt_index + 1
         max_lengths = [x for x in self.list_expr_max_length]
@@ -580,7 +568,7 @@ class TokenRemover(Transformer, AbstractTransformationsIterator):
         self.stmt_index = 0
         self.num_options_per_stmt = []
 
-    def gen_action_items(self, tree):
+    def gen_reduction_params(self, tree):
         max_consec = 3
         self.set_up([])
         _ = self.transform(tree)
@@ -594,7 +582,7 @@ class TokenRemover(Transformer, AbstractTransformationsIterator):
 
 
 class TokenRemoverNonConsec(TokenRemover):
-    def gen_action_items(self, tree):
+    def gen_reduction_params(self, tree):
         max_simult = 2
         self.set_up([])
         _ = self.transform(tree)
