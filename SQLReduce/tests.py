@@ -2,9 +2,9 @@ import unittest
 from itertools import combinations
 from lark import Tree, Token, Lark
 from lark import ParseError
-from utils import partial_equivalence
+from utils import partial_equivalence, get_grammar
 from transformation import StatementRemover, PrettyPrinter, SimpleColumnRemover, ValueMinimizer, ExprSimplifier, \
-    TokenRemover, TokenRemoverNonConsec, CompoundSimplifier, OptionalRemover
+    TokenRemover, TokenRemoverNonConsec, CompoundSimplifier, OptionalRemover, OptionalFinder
 from pathlib import Path
 from sql_parser import SQLParser
 from reducer import Reducer
@@ -408,11 +408,12 @@ class OptionalRemoverTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.parser = cls.parser = SQLParser('sql.lark', start='sql_stmt_list', debug=True, parser='lalr')
         cls.pprinter = PrettyPrinter()
+        cls.optionals = OptionalFinder().transform(get_grammar('sql.lark', 'lark.lark'))
 
     def test_from_clause(self):
         stmt = "SELECT * FROM t0 WHERE c0 > c1;"
         tree = self.parser.parse(stmt)
-        orm = OptionalRemover(remove_index=0)
+        orm = OptionalRemover(remove_index=0, optionals=self.optionals)
         result = orm.transform(tree)
 
         expected = "SELECT * WHERE c0 > c1;"
@@ -421,7 +422,7 @@ class OptionalRemoverTest(unittest.TestCase):
     def test_where_clause(self):
         stmt = "SELECT * FROM t0 WHERE c0 > c1;"
         tree = self.parser.parse(stmt)
-        orm = OptionalRemover(remove_index=1)
+        orm = OptionalRemover(remove_index=1, optionals=self.optionals)
         result = orm.transform(tree)
 
         expected = "SELECT * FROM t0;"
@@ -430,7 +431,7 @@ class OptionalRemoverTest(unittest.TestCase):
     def test_all_transforms(self):
         stmt = "SELECT * FROM t0 WHERE c0 > c1 UNION ALL SELECT c0 FROM t0;"
         tree = self.parser.parse(stmt)
-        orm = OptionalRemover()
+        orm = OptionalRemover(optionals=self.optionals)
         self.assertEqual(4, len(list(orm.all_transforms(tree))))
 
 
@@ -565,7 +566,7 @@ class CompoundSimplifierTest(unittest.TestCase):
         expected = "SELECT c0 FROM t0 UNION SELECT c1 FROM t0;"
         tree = self.parser.parse(stmt)
         compsimp = CompoundSimplifier()
-        result = map(self.pprinter.transform, compsimp.all_transforms(tree))
+        result = map(self.pprinter.transform, map(lambda x: x[1], compsimp.all_transforms(tree)))
         self.assertIn(expected, result)
 
 
