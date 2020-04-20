@@ -330,6 +330,7 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
         self.remove_index = item
 
     def gen_reduction_params(self, tree):
+        self.set_up(-1)
         _ = self.transform(tree)
         for i in range(self._num_column_refs):
             yield i
@@ -378,6 +379,7 @@ class CompoundSimplifier(Transformer, AbstractTransformationsIterator):
         self._num_reduction_opportunities = 0
 
     def gen_reduction_params(self, tree):
+        self.set_up([])
         _ = self.transform(tree)
         for i in range(self.index):
             yield i
@@ -463,6 +465,7 @@ class OptionalRemover(Transformer, AbstractTransformationsIterator):
         self.index = 0
 
     def gen_reduction_params(self, tree):
+        self.set_up([])
         _ = self.transform(tree)
         for i in range(self.index):
             yield i
@@ -515,6 +518,7 @@ class ListItemRemover(AbstractTransformationsIterator):
         self.list_expr_max_length = []
 
     def gen_reduction_params(self, tree):
+        self.set_up([])
         _ = self.transform(tree)
         num_stmts = self.stmt_index + 1
         max_lengths = [x for x in self.list_expr_max_length]
