@@ -242,11 +242,6 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
 
     :param remove_index: index of the column that should be removed.
     """
-    def __init__(self, remove_index=-1):
-        super().__init__()
-        self.remove_index = remove_index
-        self._num_column_refs = 0
-
     def _default(self, tree):
         return NamedTree(tree.data, list(map(self.transform, tree.children)))
 
@@ -263,7 +258,7 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
             return self.update_stmt(tree)
         elif tree.data == 'sql_stmt_list':
             # reset at root of parse tree
-            self._num_column_refs = 0
+            self.index = 0
             return self._default(tree)
         else:
             return self._default(tree)
@@ -277,11 +272,14 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
         """
         column_defs = tree['column_def_list'][0]
         num_columns = len(column_defs.children)
-        i = self.remove_index - self._num_column_refs
-        if 0 <= i < num_columns:
+        # compute list of indices that map to children of this node(filter) and align to 0 (map)
+        local_remove_list = sorted(filter(lambda x: 0 <= x < num_columns, map(lambda x: x - self.index, self.remove_list)),
+                                   reverse=True)
+        if len(local_remove_list) > 0:
             tree = tree.__deepcopy__(None)
+        for i in local_remove_list:
             del tree['column_def_list'][0].children[i]
-        self._num_column_refs += num_columns
+        self.index += num_columns
         return tree
 
     def insert_stmt(self, tree: NamedTree):
@@ -293,9 +291,12 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
         """
         values_list = tree['values_list'][0]
         num_columns = len(values_list['value_tuple'][0].children)
-        i = self.remove_index - self._num_column_refs
-        if 0 <= i < num_columns:
+        # compute list of indices that map to children of this node(filter) and align to 0 (map)
+        local_remove_list = sorted(filter(lambda x: 0 <= x < num_columns, map(lambda x: x - self.index, self.remove_list)),
+                                   reverse=True)
+        if len(local_remove_list) > 0:
             tree = tree.__deepcopy__(None)
+        for i in local_remove_list:
             column_list = tree['column_list', 0]
             if column_list:
                 del column_list.children[i]
@@ -304,7 +305,7 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
             values_list = tree['values_list'][0]
             for value_tuple in values_list['value_tuple']:
                 del value_tuple.children[i]
-        self._num_column_refs += num_columns
+        self.index += num_columns
         return tree
 
     def update_stmt(self, tree: NamedTree):
@@ -317,23 +318,23 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
         # an assignment consists of [column_name, EQUAL, VALUE], thus divide by 3
         assert len(tree['assign_list', 0].children) % 3 == 0
         num_columns = len(tree.children[3].children) // 3
-        i = self.remove_index - self._num_column_refs
-        if 0 <= i < num_columns:
+        # compute list of indices that map to children of this node(filter) and align to 0 (map)
+        local_remove_list = sorted(filter(lambda x: 0 <= x < num_columns, map(lambda x: x - self.index, self.remove_list)),
+                                   reverse=True)
+        if len(local_remove_list) > 0:
             tree = tree.__deepcopy__(None)
+        for i in local_remove_list:
             assignment_list = tree['assign_list', 0]
             # delete [column_name, EQUAL, VALUE]
             del assignment_list.children[3*i:3*(i+1)]
-        self._num_column_refs += num_columns
+        self.index += num_columns
         return tree
 
-    def set_up(self, item):
-        self.remove_index = item
-
     def gen_reduction_params(self, tree):
-        self.set_up(-1)
+        self.set_up([])
         _ = self.transform(tree)
-        for i in range(self._num_column_refs):
-            yield i
+        for i in range(self.index):
+            yield [i]
 
 
 class CompoundSimplifier(Transformer, AbstractTransformationsIterator):

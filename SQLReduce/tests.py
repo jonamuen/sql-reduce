@@ -433,14 +433,14 @@ class OptionalRemoverTest(unittest.TestCase):
 class SimpleColumnRemoverTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.scrm = SimpleColumnRemover(1)
+        cls.scrm = SimpleColumnRemover()
         cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
         cls.pprinter = PrettyPrinter()
 
     def test_simple(self):
         stmt = "INSERT INTO t0(c0, c1, c2) VALUES (0, 1, 2), (2, 1, 0);"
         tree = self.parser.parse(stmt)
-        self.scrm.remove_index = 1
+        self.scrm.set_up([1])
         result = self.scrm.transform(tree)
         expected = "INSERT INTO t0 (c0, c2) VALUES (0, 2), (2, 0);"
         print(self.pprinter.transform(result))
@@ -450,7 +450,7 @@ class SimpleColumnRemoverTest(unittest.TestCase):
         stmt = "CREATE TABLE t0 (c0 INT);" \
                "INSERT INTO t0 VALUES (0);" \
                "UPDATE t0 SET c0=0;"
-        self.scrm.remove_index = -1  # dont remove anything
+        self.scrm.set_up([-1])  # dont remove anything
         tree = self.parser.parse(stmt)
         result = self.scrm.transform(tree)
         self.assertEqual(self.parser.parse(stmt), tree)
@@ -460,14 +460,14 @@ class SimpleColumnRemoverTest(unittest.TestCase):
         stmt = "CREATE TABLE t0 (c0 INT);" \
                "INSERT INTO t0 VALUES (0);" \
                "UPDATE t0 SET c0=0;"
-        self.scrm.remove_index = -1 # dont remove anything, just count
+        self.scrm.set_up([-1]) # dont remove anything, just count
         tree = self.parser.parse(stmt)
         self.scrm.transform(tree)
-        self.assertEqual(3, self.scrm._num_column_refs)
+        self.assertEqual(3, self.scrm.index)
 
     def test_create_table(self):
         stmt = "CREATE TABLE t0 (c0 INT, c1 INT);"
-        self.scrm.remove_index = 1
+        self.scrm.set_up([1])
         tree = self.parser.parse(stmt)
         result = self.scrm.transform(tree)
         expected = self.parser.parse("CREATE TABLE t0 (c0 INT);")
@@ -475,13 +475,13 @@ class SimpleColumnRemoverTest(unittest.TestCase):
 
     def test_no_inserts(self):
         stmt = "SELECT c0, c1 FROM t0;"
-        self.scrm.remove_index = 0
+        self.scrm.set_up([0])
         result = self.scrm.transform(self.parser.parse(stmt))
         self.assertEqual(self.parser.parse(stmt), result)
 
     def test_no_explicit_column_refs(self):
         stmt = "INSERT INTO t0 VALUES (0, 1, 2);"
-        self.scrm.remove_index = 0
+        self.scrm.set_up([0])
         result = self.scrm.transform(self.parser.parse(stmt))
         expected = "INSERT INTO t0 VALUES (1, 2);"
         self.assertEqual(self.parser.parse(expected), result)
@@ -490,7 +490,7 @@ class SimpleColumnRemoverTest(unittest.TestCase):
         stmt = "INSERT INTO t0(c0, c1, c2) VALUES (0, 1, 2), (2, 1, 0);" \
                "INSERT INTO t1(c0, c1) VALUES (3, 4);"
         tree = self.parser.parse(stmt)
-        self.scrm.remove_index = 3
+        self.scrm.set_up([3])
         result = self.scrm.transform(tree)
         expected = "INSERT INTO t0 (c0, c1, c2) VALUES (0, 1, 2), (2, 1, 0); " \
                    "INSERT INTO t1 (c1) VALUES (4);"
@@ -500,7 +500,7 @@ class SimpleColumnRemoverTest(unittest.TestCase):
     def test_update(self):
         stmt = "UPDATE t0 SET c0=0, c1=1;"
         tree = self.parser.parse(stmt)
-        self.scrm.remove_index = 1
+        self.scrm.set_up([1])
         result = self.scrm.transform(tree)
         expected = self.parser.parse("UPDATE t0 SET c0=0;")
         self.assertEqual(expected, result)
