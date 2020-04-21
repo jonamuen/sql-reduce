@@ -1,4 +1,5 @@
 import sqlite3
+import duckdb
 from typing import List, Union
 from os import remove, system
 from pathlib import Path
@@ -52,6 +53,32 @@ class SQLiteReturnSetVerifier(AbstractVerifier):
         except sqlite3.Error as e:
             results = e
         return results
+
+
+class DuckDBVerifier(AbstractVerifier):
+    # TODO: execute in a separate process since Segfaults can actually crash python!
+    def verify(self, a: List[str], b: List[str]):
+        conn = duckdb.connect(':memory:')
+        c = conn.cursor()
+        original_exceptions = set()
+        reduced_exceptions = set()
+        for stmt in a:
+            try:
+                c.execute(stmt)
+            except RuntimeError as e:
+                if 'INTERNAL' in str(e):
+                    original_exceptions.add(str(e))
+        conn.close()
+        conn = duckdb.connect(':memory:')
+        c = conn.cursor()
+        for stmt in b:
+            try:
+                c.execute(stmt)
+            except RuntimeError as e:
+                if 'INTERNAL' in str(e):
+                    reduced_exceptions.add(str(e))
+        print(original_exceptions, reduced_exceptions)
+        return original_exceptions == reduced_exceptions
 
 
 class ExternalVerifier(AbstractVerifier):
