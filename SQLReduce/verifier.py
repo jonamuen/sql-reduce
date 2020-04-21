@@ -1,7 +1,11 @@
 import sqlite3
+import duckdb
 from typing import List, Union
 from os import remove, system
 from pathlib import Path
+from multiprocessing import Process, Queue
+from sql_parser import split_into_stmts
+import logging
 
 
 class AbstractVerifier:
@@ -52,6 +56,78 @@ class SQLiteReturnSetVerifier(AbstractVerifier):
         except sqlite3.Error as e:
             results = e
         return results
+
+
+class DuckDBVerifier(AbstractVerifier):
+    """
+    Use this verifier to check if certain errors occur when running a query against DuckDB.
+    Currently, these errors are detected automatically:
+        'INTERNAL', 'Assertion failed', 'Not implemented'
+    """
+    def __init__(self, original_stmt: Union[str, List[str]], no_subprocess=False):
+        """
+        Provide the verifier with the original statement against which verification
+        will be performed. If the error you are reducing does not crash DuckDB,
+        you can set the no_subprocess flag to True to execute queries in the same
+        process as the verifier, which significantly improves performance.
+        :param original_stmt: the statement(s) that trigger the error
+        :param no_subprocess: can be set to true if the error does not crash DuckDB
+        """
+        q = Queue()
+        if type(original_stmt) == str:
+            original_stmt = list(split_into_stmts(original_stmt))
+        p = Process(target=self._process_target, args=(original_stmt, q))
+        p.start()
+        p.join()
+        self.no_subprocess = no_subprocess
+        self.exitcode = p.exitcode
+        if self.exitcode != 0 and no_subprocess:
+            logging.error("DuckDBVerifier: no_subprocess flag is set, but unmodified testcase crashes!")
+            exit(1)
+        self.errors = None
+        if self.exitcode == 0:
+            self.errors = q.get()
+        print(self.errors)
+
+    def verify(self, a: List[str], b: List[str]):
+        """
+        Check if the statements b trigger the same error as the statements with
+        which this instance was initialized.
+        :param a: Ignored. (legacy unmodified statement)
+        :param b: The statement(s) to check
+        :return: True if the same error is triggered, false otherwise
+        """
+        q = Queue()
+        if self.no_subprocess:
+            self._process_target(b, q)
+        else:
+            p = Process(target=self._process_target, args=(b, q))
+            p.start()
+            p.join()
+            if self.exitcode != 0:
+                return p.exitcode == self.exitcode
+        return q.get() == self.errors
+
+    def _process_target(self, stmt_list: List[str], q: Queue):
+        """
+        Internal helper function that runs the query and can be used as process
+        target.
+        :param stmt_list:
+        :param q:
+        :return:
+        """
+        conn = duckdb.connect(':memory:')
+        c = conn.cursor()
+        exceptions = set()
+        for stmt in stmt_list:
+            try:
+                c.execute(stmt)
+            except RuntimeError as e:
+                print(str(e).split(':')[0])
+                if str(e).split(':')[0] in ['INTERNAL', 'Assertion failed', 'Not implemented']:
+                    exceptions.add(str(e))
+        conn.close()
+        q.put(exceptions)
 
 
 class ExternalVerifier(AbstractVerifier):

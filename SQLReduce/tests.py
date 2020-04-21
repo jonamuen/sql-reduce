@@ -8,7 +8,7 @@ from transformation import StatementRemover, PrettyPrinter, SimpleColumnRemover,
 from pathlib import Path
 from sql_parser import SQLParser
 from reducer import Reducer
-from verifier import AbstractVerifier, ExternalVerifier, SQLiteReturnSetVerifier, Verifier
+from verifier import AbstractVerifier, ExternalVerifier, SQLiteReturnSetVerifier, Verifier, DuckDBVerifier
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
@@ -690,6 +690,25 @@ class VerifierTest(unittest.TestCase):
         self.assertFalse(verifier.verify([], []))
 
 
+class DuckDBVerifierTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=False, parser='lalr')
+        cls.verifier = DuckDBVerifier()
+
+    def test_unmodified(self):
+        with open('test/real_testcases/duckdb/issue3.sql') as f:
+            tree = self.parser.parse(f.read())
+        stmts = list(map(PrettyPrinter().transform, tree.children))
+        self.assertTrue(self.verifier.verify(stmts, stmts))
+
+    def test_empty(self):
+        with open('test/real_testcases/duckdb/issue3.sql') as f:
+            tree = self.parser.parse(f.read())
+        stmts = list(map(PrettyPrinter().transform, tree.children))
+        self.assertFalse(self.verifier.verify(stmts, []))
+
+
 class ReducerTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -737,6 +756,55 @@ class ReducerTest(unittest.TestCase):
 
         result = self.reducer.reduce(stmt)
         self.assertEqual(expected, self.pprinter.transform(result))
+
+
+class DuckDBReducerTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        optionals = OptionalFinder().transform(get_grammar('sql.lark', 'lark.lark'))
+        cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=False, parser='lalr')
+        cls.reduction_passes = [StatementRemover(), OptionalRemover(optionals=optionals), CompoundSimplifier(),
+                            SimpleColumnRemover(),
+                            ExprSimplifier(), TokenRemover(), TokenRemoverNonConsec()]
+
+    def test_duckdb_issue3(self):
+        with open('test/real_testcases/duckdb/issue3.sql') as f:
+            stmt = f.read()
+        reducer = Reducer(self.parser, DuckDBVerifier(stmt, no_subprocess=True), self.reduction_passes)
+        print(PrettyPrinter().transform(reducer.reduce(stmt)))
+
+    def test_duckdb_issue4(self):
+        with open('test/real_testcases/duckdb/issue4.sql') as f:
+            stmt = f.read()
+        reducer = Reducer(self.parser, DuckDBVerifier(stmt), self.reduction_passes)
+        print(PrettyPrinter().transform(reducer.reduce(stmt)))
+
+    def test_duckdb_issue5(self):
+        # requires c52fc9b or 5c4cde5
+        with open('test/real_testcases/duckdb/issue5.sql') as f:
+            stmt = f.read()
+        reducer = Reducer(self.parser, DuckDBVerifier(stmt, no_subprocess=True), self.reduction_passes)
+        print(PrettyPrinter().transform(reducer.reduce(stmt)))
+
+    def test_duckdb_issue6(self):
+        # requires unknown commit
+        with open('test/real_testcases/duckdb/issue6.sql') as f:
+            stmt = f.read()
+        reducer = Reducer(self.parser, DuckDBVerifier(stmt), self.reduction_passes)
+        print(PrettyPrinter().transform(reducer.reduce(stmt)))
+
+    def test_duckdb_issue7(self):
+        with open('test/real_testcases/duckdb/issue7.sql') as f:
+            stmt = f.read()
+        reducer = Reducer(self.parser, DuckDBVerifier(stmt), self.reduction_passes)
+        print(PrettyPrinter().transform(reducer.reduce(stmt)))
+
+    def test_duckdb_issue8(self):
+        # requires debug build f3c7d39 to reproduce
+        with open('test/real_testcases/duckdb/issue8.sql') as f:
+            stmt = f.read()
+        reducer = Reducer(self.parser, DuckDBVerifier(stmt), self.reduction_passes)
+        print(PrettyPrinter().transform(reducer.reduce(stmt)))
 
 
 if __name__ == '__main__':
