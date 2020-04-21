@@ -59,7 +59,20 @@ class SQLiteReturnSetVerifier(AbstractVerifier):
 
 
 class DuckDBVerifier(AbstractVerifier):
+    """
+    Use this verifier to check if certain errors occur when running a query against DuckDB.
+    Currently, these errors are detected automatically:
+        'INTERNAL', 'Assertion failed', 'Not implemented'
+    """
     def __init__(self, original_stmt: Union[str, List[str]], no_subprocess=False):
+        """
+        Provide the verifier with the original statement against which verification
+        will be performed. If the error you are reducing does not crash DuckDB,
+        you can set the no_subprocess flag to True to execute queries in the same
+        process as the verifier, which significantly improves performance.
+        :param original_stmt: the statement(s) that trigger the error
+        :param no_subprocess: can be set to true if the error does not crash DuckDB
+        """
         q = Queue()
         if type(original_stmt) == str:
             original_stmt = list(split_into_stmts(original_stmt))
@@ -77,6 +90,13 @@ class DuckDBVerifier(AbstractVerifier):
         print(self.errors)
 
     def verify(self, a: List[str], b: List[str]):
+        """
+        Check if the statements b trigger the same error as the statements with
+        which this instance was initialized.
+        :param a: Ignored. (legacy unmodified statement)
+        :param b: The statement(s) to check
+        :return: True if the same error is triggered, false otherwise
+        """
         q = Queue()
         if self.no_subprocess:
             self._process_target(b, q)
@@ -89,6 +109,13 @@ class DuckDBVerifier(AbstractVerifier):
         return q.get() == self.errors
 
     def _process_target(self, stmt_list: List[str], q: Queue):
+        """
+        Internal helper function that runs the query and can be used as process
+        target.
+        :param stmt_list:
+        :param q:
+        :return:
+        """
         conn = duckdb.connect(':memory:')
         c = conn.cursor()
         exceptions = set()
@@ -101,7 +128,6 @@ class DuckDBVerifier(AbstractVerifier):
                     exceptions.add(str(e))
         conn.close()
         q.put(exceptions)
-        # exit(0)
 
 
 class ExternalVerifier(AbstractVerifier):
