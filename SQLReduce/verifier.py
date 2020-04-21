@@ -3,6 +3,9 @@ import duckdb
 from typing import List, Union
 from os import remove, system
 from pathlib import Path
+from multiprocessing import Process, Queue
+from sql_parser import split_into_stmts
+import logging
 
 
 class AbstractVerifier:
@@ -56,29 +59,49 @@ class SQLiteReturnSetVerifier(AbstractVerifier):
 
 
 class DuckDBVerifier(AbstractVerifier):
-    # TODO: execute in a separate process since Segfaults can actually crash python!
+    def __init__(self, original_stmt: Union[str, List[str]], no_subprocess=False):
+        q = Queue()
+        if type(original_stmt) == str:
+            original_stmt = list(split_into_stmts(original_stmt))
+        p = Process(target=self._process_target, args=(original_stmt, q))
+        p.start()
+        p.join()
+        self.no_subprocess = no_subprocess
+        self.exitcode = p.exitcode
+        if self.exitcode != 0 and no_subprocess:
+            logging.error("DuckDBVerifier: no_subprocess flag is set, but unmodified testcase crashes!")
+            exit(1)
+        self.errors = None
+        if self.exitcode == 0:
+            self.errors = q.get()
+        print(self.errors)
+
     def verify(self, a: List[str], b: List[str]):
+        q = Queue()
+        if self.no_subprocess:
+            self._process_target(b, q)
+        else:
+            p = Process(target=self._process_target, args=(b, q))
+            p.start()
+            p.join()
+            if self.exitcode != 0:
+                return p.exitcode == self.exitcode
+        return q.get() == self.errors
+
+    def _process_target(self, stmt_list: List[str], q: Queue):
         conn = duckdb.connect(':memory:')
         c = conn.cursor()
-        original_exceptions = set()
-        reduced_exceptions = set()
-        for stmt in a:
+        exceptions = set()
+        for stmt in stmt_list:
             try:
                 c.execute(stmt)
             except RuntimeError as e:
-                if 'INTERNAL' in str(e):
-                    original_exceptions.add(str(e))
+                print(str(e).split(':')[0])
+                if str(e).split(':')[0] in ['INTERNAL', 'Assertion failed', 'Not implemented']:
+                    exceptions.add(str(e))
         conn.close()
-        conn = duckdb.connect(':memory:')
-        c = conn.cursor()
-        for stmt in b:
-            try:
-                c.execute(stmt)
-            except RuntimeError as e:
-                if 'INTERNAL' in str(e):
-                    reduced_exceptions.add(str(e))
-        print(original_exceptions, reduced_exceptions)
-        return original_exceptions == reduced_exceptions
+        q.put(exceptions)
+        # exit(0)
 
 
 class ExternalVerifier(AbstractVerifier):
