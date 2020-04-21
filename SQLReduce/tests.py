@@ -757,19 +757,53 @@ class ReducerTest(unittest.TestCase):
         result = self.reducer.reduce(stmt)
         self.assertEqual(expected, self.pprinter.transform(result))
 
-    def test_duckdb_issue4(self):
-        with open('test/real_testcases/duckdb/issue3.sql') as f:
-            stmt = f.read()
-        print(stmt)
 
+class DuckDBReducerTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
         optionals = OptionalFinder().transform(get_grammar('sql.lark', 'lark.lark'))
-        reduction_passes = [StatementRemover(), OptionalRemover(optionals=optionals), CompoundSimplifier(),
+        cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=False, parser='lalr')
+        cls.reduction_passes = [StatementRemover(), OptionalRemover(optionals=optionals), CompoundSimplifier(),
                             SimpleColumnRemover(),
                             ExprSimplifier(), TokenRemover(), TokenRemoverNonConsec()]
 
-        reducer = Reducer(SQLParser('sql.lark', start="sql_stmt_list", debug=False, parser='lalr'),
-                          DuckDBVerifier(), reduction_passes)
+    def test_duckdb_issue3(self):
+        with open('test/real_testcases/duckdb/issue3.sql') as f:
+            stmt = f.read()
+        reducer = Reducer(self.parser, DuckDBVerifier(stmt, no_subprocess=True), self.reduction_passes)
+        print(PrettyPrinter().transform(reducer.reduce(stmt)))
 
+    def test_duckdb_issue4(self):
+        with open('test/real_testcases/duckdb/issue4.sql') as f:
+            stmt = f.read()
+        reducer = Reducer(self.parser, DuckDBVerifier(stmt), self.reduction_passes)
+        print(PrettyPrinter().transform(reducer.reduce(stmt)))
+
+    def test_duckdb_issue5(self):
+        # requires c52fc9b or 5c4cde5
+        with open('test/real_testcases/duckdb/issue5.sql') as f:
+            stmt = f.read()
+        reducer = Reducer(self.parser, DuckDBVerifier(stmt, no_subprocess=True), self.reduction_passes)
+        print(PrettyPrinter().transform(reducer.reduce(stmt)))
+
+    def test_duckdb_issue6(self):
+        # requires unknown commit
+        with open('test/real_testcases/duckdb/issue6.sql') as f:
+            stmt = f.read()
+        reducer = Reducer(self.parser, DuckDBVerifier(stmt), self.reduction_passes)
+        print(PrettyPrinter().transform(reducer.reduce(stmt)))
+
+    def test_duckdb_issue7(self):
+        with open('test/real_testcases/duckdb/issue7.sql') as f:
+            stmt = f.read()
+        reducer = Reducer(self.parser, DuckDBVerifier(stmt), self.reduction_passes)
+        print(PrettyPrinter().transform(reducer.reduce(stmt)))
+
+    def test_duckdb_issue8(self):
+        # requires debug build f3c7d39 to reproduce
+        with open('test/real_testcases/duckdb/issue8.sql') as f:
+            stmt = f.read()
+        reducer = Reducer(self.parser, DuckDBVerifier(stmt), self.reduction_passes)
         print(PrettyPrinter().transform(reducer.reduce(stmt)))
 
 
