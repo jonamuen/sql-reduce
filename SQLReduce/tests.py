@@ -4,7 +4,7 @@ from lark import Tree, Token, Lark
 from lark import ParseError
 from utils import partial_equivalence, get_grammar
 from transformation import StatementRemover, PrettyPrinter, SimpleColumnRemover, ValueMinimizer, ExprSimplifier, \
-    TokenRemover, TokenRemoverNonConsec, CompoundSimplifier, OptionalRemover, OptionalFinder
+    TokenRemover, TokenRemoverNonConsec, CompoundSimplifier, OptionalRemover, OptionalFinder, BalancedParenRemover
 from pathlib import Path
 from sql_parser import SQLParser
 from reducer import Reducer
@@ -590,6 +590,36 @@ class ExprSimplifierTest(unittest.TestCase):
         print(self.simplifier.index)
 
 
+class BalancedParenRemoverTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
+        cls.remover = BalancedParenRemover()
+
+    def test_no_parentheses(self):
+        tree = self.parser.parse('SELECT c0 FROM t0;')
+        results = list(map(lambda x: PrettyPrinter().transform(x[1]), self.remover.all_transforms(tree)))
+        self.assertEqual(0, len(results))
+
+    def test_unrec(self):
+        stmt = "SLCT t0.c0 FROM t0 JOIN t2 ON (((t2.c2)) <= (((t0.c0) - (t2.c0)))) WHERE (((t2.c1)) <= (t0.c0));"
+        tree = self.parser.parse(stmt)
+        results = list(self.remover.all_transforms(tree))
+        self.assertEqual(21, len(results))
+
+    def test_multiple(self):
+        stmt = "SELECT t0.c0 FROM t0 JOIN t2 ON (((t2.c2)) <= (((t0.c0) - (t2.c0)))) WHERE (((t2.c1)) <= (t0.c0));"
+        tree = self.parser.parse(stmt)
+        results = list(map(lambda x: PrettyPrinter().transform(x[1]), self.remover.all_transforms(tree)))
+        self.assertEqual(21, len(results))
+
+    def test_all_transforms(self):
+        tree = self.parser.parse('SELECT ((((0) + 1) + 2) + 3) FROM t0;')
+        results = list(map(lambda x: PrettyPrinter().transform(x[1]), self.remover.all_transforms(tree)))
+        self.assertIn('SELECT 0 + 1 + 2 + 3 FROM t0;', results)
+        self.assertIn('SELECT ((0 + 1 + 2) + 3) FROM t0;', results)
+
+
 class ValueMinimizerTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -764,8 +794,8 @@ class DuckDBReducerTest(unittest.TestCase):
         optionals = OptionalFinder().transform(get_grammar('sql.lark', 'lark.lark'))
         cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=False, parser='lalr')
         cls.reduction_passes = [StatementRemover(), OptionalRemover(optionals=optionals), CompoundSimplifier(),
-                            SimpleColumnRemover(),
-                            ExprSimplifier(), TokenRemover(), TokenRemoverNonConsec()]
+                                SimpleColumnRemover(), ExprSimplifier(), BalancedParenRemover(),
+                                TokenRemover(), TokenRemoverNonConsec()]
 
     def test_duckdb_issue3(self):
         with open('test/real_testcases/duckdb/issue3.sql') as f:
@@ -805,6 +835,17 @@ class DuckDBReducerTest(unittest.TestCase):
             stmt = f.read()
         reducer = Reducer(self.parser, DuckDBVerifier(stmt), self.reduction_passes)
         print(PrettyPrinter().transform(reducer.reduce(stmt)))
+
+    def test_reduce_balanced(self):
+        stmts = "CREATE TABLE t2 (c0 real, c1 boolean, c2 double);" \
+                "CREATE TABLE t0 (c0 BIGINT);" \
+                "SELECT t0.c0 FROM t0 JOIN t2 ON (((t2.c2)) <= (((t0.c0) - (t2.c0))))" \
+                "  WHERE (((t2.c1)) <= (t0.c0))" \
+                "UNION SELECT t0.c0 FROM t0 JOIN t2 ON (((t0.c0)))" \
+                "UNION SELECT t0.c0 FROM t0 JOIN t2 ON (NULL);"
+        print(self.parser.parse(stmts).pretty())
+        reducer = Reducer(self.parser, DuckDBVerifier(stmts), self.reduction_passes)
+        print(PrettyPrinter().transform(reducer.reduce(stmts)))
 
 
 if __name__ == '__main__':

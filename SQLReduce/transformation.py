@@ -186,6 +186,48 @@ class ValueMinimizer(Transformer):
         return self.VALUE(token)
 
 
+class BalancedParenRemover(Transformer, AbstractTransformationsIterator):
+    def __init__(self, remove_list=None, multi_remove=True):
+        Transformer.__init__(self)
+        AbstractTransformationsIterator.__init__(self, remove_list=remove_list, multi_remove=multi_remove)
+
+    def gen_reduction_params(self, tree):
+        self.set_up([])
+        _ = self.transform(tree)
+        for i in range(self.index):
+            yield i
+
+    def __default__(self, data, children, meta):
+        par_indices = []  # list of tuples of indices of corresponding LPAREN and RPAREN
+        local_remove_list = []
+        stack = []
+
+        # find all indices of corresponding parentheses
+        # e.g. for "(( expr ))", par_indices will be [(0, 4), (1, 3)]
+        for i, c in enumerate(children):
+            if issubclass(type(c), Token):
+                if c.value == '(':
+                    stack.append(i)
+                elif c.value == ')':
+                    par_indices.append((stack.pop(-1), i))
+
+        # find indices of pairs of parentheses that are marked for removal
+        for i, par_index in enumerate(par_indices):
+            if self.index + i in self.remove_list:
+                local_remove_list += list(par_index)
+
+        # increment global index by number of balance parenthesis pairs
+        self.index += len(par_indices)
+
+        # sort indices descending and delete
+        local_remove_list.sort(reverse=True)
+        if len(local_remove_list) > 0:
+            children = [c for c in children]
+        for i in local_remove_list:
+            del children[i]
+        return NamedTree(data, children, meta)
+
+
 class ExprSimplifier(Transformer, AbstractTransformationsIterator):
     def __init__(self, remove_list=None, multi_remove=True):
         Transformer.__init__(self)
