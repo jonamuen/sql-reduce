@@ -93,15 +93,15 @@ table_name: (NAME DOT)? NAME
 column_name: NAME (DOT NAME)? (DOT NAME)?
            | STAR
 
-sql_type: NAME ("("VALUE ")")? (k_not VALUE)? (k_default default_expr)?
+sql_type: NAME (LPAREN VALUE RPAREN)? (k_not VALUE)? (k_default default_expr)?
 
-default_expr: "(" default_expr ")" | NAME? VALUE
+default_expr: LPAREN default_expr RPAREN | NAME? VALUE
 
 constraint: k_check expr
 
 // TODO: add more operators
 operator: PLUS | MINUS | STAR | SLASH | EQUAL | NEQ | GREATER | LESS | k_is
-        | k_or | k_and
+        | k_or | k_and | LEQ | GEQ
 
 compound_operator: (k_union k_all?) | k_intersect | k_except
 
@@ -174,6 +174,8 @@ EQUAL: "="
 GREATER: ">"
 LESS: "<"
 NEQ: "!="
+LEQ: "<="
+GEQ: ">="
 DOUBLECOL: "::"
 DOT: "."
 

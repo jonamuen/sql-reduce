@@ -364,9 +364,14 @@ class PrettyPrinterTest(unittest.TestCase):
         tree = self.parser.parse(stmt)
         self.assertEqual(stmt, self.printer.transform(tree))
 
+    def test_varchar(self):
+        stmt = "CREATE TABLE t0 (c0 VARCHAR (128));"
+        tree = self.parser.parse(stmt)
+        self.assertEqual(stmt, self.printer.transform(tree))
+
     def test_unexpected(self):
-        tree = self.parser.parse("SLCT * FROM t0;")
-        self.assertEqual("SLCT * FROM t0;", self.printer.transform(tree))
+        tree = self.parser.parse("SLCT * FROM t0 WHERE ((3 + 4) - 2) >= 0;")
+        self.assertEqual("SLCT * FROM t0 WHERE ((3 + 4) - 2) >= 0;", self.printer.transform(tree))
 
     def test_whitespace(self):
         tree = self.parser.parse("SELECT     *     FROM    t0    ;")
@@ -724,19 +729,18 @@ class DuckDBVerifierTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=False, parser='lalr')
-        cls.verifier = DuckDBVerifier()
+        with open('test/real_testcases/duckdb/issue3.sql') as f:
+            stmt = f.read()
+        cls.verifier = DuckDBVerifier(original_stmt=stmt)
 
     def test_unmodified(self):
         with open('test/real_testcases/duckdb/issue3.sql') as f:
             tree = self.parser.parse(f.read())
         stmts = list(map(PrettyPrinter().transform, tree.children))
-        self.assertTrue(self.verifier.verify(stmts, stmts))
+        self.assertTrue(self.verifier.verify([], stmts))
 
     def test_empty(self):
-        with open('test/real_testcases/duckdb/issue3.sql') as f:
-            tree = self.parser.parse(f.read())
-        stmts = list(map(PrettyPrinter().transform, tree.children))
-        self.assertFalse(self.verifier.verify(stmts, []))
+        self.assertFalse(self.verifier.verify([], []))
 
 
 class ReducerTest(unittest.TestCase):

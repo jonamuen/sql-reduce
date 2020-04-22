@@ -87,7 +87,6 @@ class DuckDBVerifier(AbstractVerifier):
         self.errors = None
         if self.exitcode == 0:
             self.errors = q.get()
-        print(self.errors)
 
     def verify(self, a: List[str], b: List[str]):
         """
@@ -104,7 +103,9 @@ class DuckDBVerifier(AbstractVerifier):
             p = Process(target=self._process_target, args=(b, q))
             p.start()
             p.join()
-            if self.exitcode != 0:
+            if p.exitcode != 0:
+                if self.exitcode == 0:
+                    logging.warning(f"Unexpected exit code {p.exitcode}! Is this a different bug?: {''.join(b)}")
                 return p.exitcode == self.exitcode
         return q.get() == self.errors
 
@@ -123,7 +124,6 @@ class DuckDBVerifier(AbstractVerifier):
             try:
                 c.execute(stmt)
             except RuntimeError as e:
-                print(str(e).split(':')[0])
                 if str(e).split(':')[0] in ['INTERNAL', 'Assertion failed', 'Not implemented']:
                     exceptions.add(str(e))
         conn.close()

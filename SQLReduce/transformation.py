@@ -106,9 +106,6 @@ class PrettyPrinter(Transformer):
     def list_expr(self, children):
         return '(' + self._list(children) + ')'
 
-    def paren_expr(self, children):
-        return '(' + self._list(children, sep=' ') + ')'
-
     def _list(self, children, sep=', '):
         """
         Return string representation of common list like patterns (e.g. list of
