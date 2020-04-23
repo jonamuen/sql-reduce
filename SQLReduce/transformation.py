@@ -400,24 +400,28 @@ class CompoundSimplifier(Transformer, AbstractTransformationsIterator):
     def __init__(self, remove_list=None, multi_remove=True):
         Transformer.__init__(self)
         AbstractTransformationsIterator.__init__(self, remove_list=remove_list, multi_remove=multi_remove)
+
     @v_args(meta=True)
     def select_stmt_helper(self, children, meta):
         tree = NamedTree('select_stmt_helper', children, meta)
+        rhs = tree['select_stmt', 0]
         lhs = tree['select_stmt_helper', 0]
-        if lhs:
-            rhs = tree['select_stmt', 0]
-            if rhs:
-                if self.index in self.remove_list:
-                    del tree.children[1]
-                    del tree.children[0]
-                elif self.index + 1 in self.remove_list:
-                    del tree.children[2]
-                    del tree.children[1]
-                    tree.children = tree.children[0].children
-                self.index += 2
+        if lhs is not None:
+            if rhs is not None:
+                return tree
             else:
-                tree.children = tree.children[0].children
-        return tree
+                return lhs
+        else:
+            if rhs is not None:
+                return NamedTree('select_stmt_helper', [rhs])
+            else:
+                raise Discard
+
+    def select_stmt(self, children):
+        self.index += 1
+        if self.index - 1 in self.remove_list:
+            raise Discard
+        return NamedTree('select_stmt', children)
 
     def __default__(self, data, children, meta):
         return NamedTree(data, children, meta)

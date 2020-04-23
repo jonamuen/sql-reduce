@@ -125,7 +125,7 @@ class DuckDBVerifier(AbstractVerifier):
                 c.execute(stmt)
             except RuntimeError as e:
                 if str(e).split(':')[0] in ['INTERNAL', 'Assertion failed', 'Not implemented']:
-                    exceptions.add(str(e))
+                    exceptions.add(str(e)[:30])
         conn.close()
         q.put(exceptions)
 
