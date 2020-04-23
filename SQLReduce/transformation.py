@@ -393,6 +393,43 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
             yield i
 
 
+class Canonicalizer(Transformer, AbstractTransformationsIterator):
+    """
+    The canonicalizer can simplify upsert to insert and can replace the types of
+    column definitions (in create table statements) to INT.
+    Canonicalization is only possible on statements that were parsed with sql.lark.
+    """
+    def __init__(self, remove_list=None, multi_remove=True):
+        Transformer.__init__(self)
+        AbstractTransformationsIterator.__init__(self, remove_list=remove_list, multi_remove=multi_remove)
+
+    @v_args(tree=True)
+    def upsert_stmt(self, tree):
+        # reduce upsert to insert
+        if self.index in self.remove_list:
+            tree = NamedTree('insert_stmt', tree.children)
+            tree.children[0] = NamedTree('k_insert', [DataToken('INSERT', 'INSERT')])
+        self.index += 1
+        return tree
+
+    @v_args(meta=True)
+    def column_def(self, children, meta):
+        tree = NamedTree('column_def', children, meta)
+        # reduce type to INT
+        t = tree['sql_type', 0]
+        if t is not None:
+            if self.index in self.remove_list:
+                tree.children[1] = NamedTree('sql_type', [DataToken('NAME', 'INT')])
+            self.index += 1
+        return tree
+
+    def gen_reduction_params(self, tree):
+        self.set_up([])
+        _ = self.transform(tree)
+        for i in range(self.index):
+            yield i
+
+
 class CompoundSimplifier(Transformer, AbstractTransformationsIterator):
     """
     Simplify compound expressions (UNION, INTERSECT, EXCEPT).

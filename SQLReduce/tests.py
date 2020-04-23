@@ -4,7 +4,8 @@ from lark import Tree, Token, Lark
 from lark import ParseError
 from utils import partial_equivalence, get_grammar
 from transformation import StatementRemover, PrettyPrinter, SimpleColumnRemover, ValueMinimizer, ExprSimplifier, \
-    TokenRemover, TokenRemoverNonConsec, CompoundSimplifier, OptionalRemover, OptionalFinder, BalancedParenRemover
+    TokenRemover, TokenRemoverNonConsec, CompoundSimplifier, OptionalRemover, OptionalFinder, BalancedParenRemover, \
+    Canonicalizer
 from pathlib import Path
 from sql_parser import SQLParser
 from reducer import Reducer
@@ -404,10 +405,37 @@ class PrettyPrinterTest(unittest.TestCase):
         self.assertEqual(tree, self.parser.parse(self.printer.transform(tree)))
 
 
+class CanonicalizerTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.parser = SQLParser('sql.lark', start='sql_stmt_list', debug=True, parser='lalr')
+        cls.pprinter = PrettyPrinter()
+        cls.canonicalizer = Canonicalizer()
+
+    def test_types(self):
+        stmt = "CREATE TABLE t0 (id VARCHAR(16), a BIGINT, b UNSIGNED INT);"
+        tree = self.parser.parse(stmt)
+        expected = ["CREATE TABLE t0 (id INT, a INT, b INT);",
+                    "CREATE TABLE t0 (id INT, a BIGINT, b UNSIGNED INT);",
+                    "CREATE TABLE t0 (id VARCHAR (16), a INT, b UNSIGNED INT);",
+                    "CREATE TABLE t0 (id VARCHAR (16), a BIGINT, b INT);"]
+        for _, x in self.canonicalizer.all_transforms(tree):
+            self.assertIn(self.pprinter.transform(x), expected)
+
+    def test_upsert(self):
+        stmt = "UPSERT INTO t0 VALUES (0, 1), (1, 2);"
+        tree = self.parser.parse(stmt)
+        expected = ["INSERT INTO t0 VALUES (0, 1), (1, 2);"]
+        results = list(self.canonicalizer.all_transforms(tree))
+        for _, res in results:
+            self.assertIn(self.pprinter.transform(res), expected)
+        self.assertEqual(1, len(results))
+
+
 class OptionalRemoverTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.parser = cls.parser = SQLParser('sql.lark', start='sql_stmt_list', debug=True, parser='lalr')
+        cls.parser = SQLParser('sql.lark', start='sql_stmt_list', debug=True, parser='lalr')
         cls.pprinter = PrettyPrinter()
         cls.optionals = OptionalFinder().transform(get_grammar('sql.lark', 'lark.lark'))
 
@@ -792,6 +820,7 @@ class ReducerTest(unittest.TestCase):
         self.assertEqual(expected, self.pprinter.transform(result))
 
 
+@unittest.skip
 class DuckDBReducerTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
