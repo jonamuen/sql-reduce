@@ -1,7 +1,7 @@
 from lark import Transformer, v_args, Discard
 from lark import Tree
 from lark.lexer import Token
-from typing import Iterator, Tuple
+from typing import Iterator, Tuple, Optional
 from named_tree import NamedTree, NamedTreeConstructor, DataToken
 from itertools import combinations
 from math import comb
@@ -163,24 +163,101 @@ class StatementRemover(AbstractTransformationsIterator):
             yield i
 
 
-class ValueMinimizer(Transformer):
-    def VALUE(self, token: Token):
-        if token.value.startswith("'") or token.value.startswith('"'):
-            reduced_value = token.value[:(len(token.value)//2)]
-            return Token("VALUE", reduced_value)
-        try:
-            num_value = int(token.value)
-            return Token("VALUE", str(num_value // 2))
-        except ValueError:
-            try:
-                num_value = float(token.value)
-                # setting ndigits=0 keeps type float
-                return Token("VALUE", str(round(num_value / 2, ndigits=0)))
-            except ValueError:
-                return token
+class ValueMinimizer(Transformer, AbstractTransformationsIterator):
+    """
+    Reduce string and number (int or float) literals.
+    """
+    def __init__(self, remove_list=None, multi_remove=True, replace_str: Optional[str] = None,
+                 replace_int: Optional[str] = None, replace_float: Optional[str] = None):
+        """
+        Parameters remove_list and multi_remove have the same function as in the
+        base class AbstractTransformationsIterator.
+        Parameters replace_str, ...int, ...float set the replacement value for string
+        or number literals. For number literals, NUM(token) automatically decides
+        if token is a float or int. If any of the replace_... parameters is set to
+        None, that class of tokens will not be counted and thus won't be reduced.
 
-    def NUMBER(self, token: Token):
-        return self.VALUE(token)
+        Note: all_transforms overwrites all parameters except multi_remove.
+        :param remove_list: passed to AbstractTransformationsIterator, only affects transform(), overwritten by all_transforms()
+        :param multi_remove: passed to AbstractTransformationsIterator, only affects all_transforms()
+        :param replace_str: replacement value for string literals. If None, don't reduce string literals
+        :param replace_int: replacement value for int literals. If None, don't reduce int literals
+        :param replace_float: replacement value for float(-like) literals. If None, don't reduce float literals
+        """
+        Transformer.__init__(self)
+        AbstractTransformationsIterator.__init__(self, remove_list=remove_list, multi_remove=multi_remove)
+        self.replace_str = replace_str
+        self.replace_int = replace_int
+        self.replace_float = replace_float
+
+    def VALUE(self, token):
+        if token.value.startswith("'") or token.value.startswith('"'):
+            return self.STRING(token)
+        else:
+            return self.NUM(token)
+
+    def NUM(self, token):
+        # NUM not defined in sql.lark, but in unrecognized.lark
+
+        # check if value is int
+        try:
+            int(token.value)
+            is_int = True
+        except ValueError:
+            is_int = False
+
+        # replace if necessary, count if applicable
+        if is_int and self.replace_int is not None:
+            if self.index in self.remove_list:
+                token = DataToken(token.type, self.replace_int)
+            self.index += 1
+        elif not is_int and self.replace_float is not None:
+            if self.index in self.remove_list:
+                token = DataToken(token.type, self.replace_float)
+            self.index += 1
+        return token
+
+    def STRING(self, token):
+        # from unrecognized.lark
+        if self.replace_str is None:
+            return token
+        if self.index in self.remove_list:
+            token = DataToken(token.type, self.replace_str)
+        self.index += 1
+        return token
+
+    def gen_reduction_params(self, tree):
+        self.set_up([])
+        _ = self.transform(tree)
+        for i in range(self.index):
+            yield i
+
+    def all_transforms(self, tree: Tree, progress: int = 0) -> Iterator[Tuple[int, Tree]]:
+        """
+        Important: since some replacement values (e.g. NULL) can be longer than the
+        original value, the result might be longer than the input!
+
+        Invoke all_transforms of superclass for the following replacement values:
+        str: "''", "NULL"
+        int/float: "0", "-1", "1", "NULL"
+        :param tree: parse tree that should be reduced
+        :param progress: ignored
+        :return:
+        """
+        # first attempt to reduce string literals
+        for replace_str in ["''", "NULL"]:
+            self.replace_str = replace_str
+            self.replace_int = None
+            self.replace_float = None
+            for res in AbstractTransformationsIterator.all_transforms(self, tree):
+                yield res
+        # reduce number literals
+        for replace_int, replace_float in [('0', '0.0'), ('-1', '-1.0'), ('1', '1.0'), ('NULL', 'NULL')]:
+            self.replace_str = None
+            self.replace_int = replace_int
+            self.replace_float = replace_float
+            for res in AbstractTransformationsIterator.all_transforms(self, tree):
+                yield res
 
 
 class BalancedParenRemover(Transformer, AbstractTransformationsIterator):

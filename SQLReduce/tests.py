@@ -658,24 +658,33 @@ class ValueMinimizerTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
         cls.minimizer = ValueMinimizer()
+        cls.pprinter = PrettyPrinter()
 
     def test_pos_int(self):
         tree = self.parser.parse("SELECT +9;")
-        result = self.minimizer.transform(tree)
-        expected = self.parser.parse("SELECT 4;")
-        self.assertEqual(expected, result)
+        results = set(map(lambda x: x[1], self.minimizer.all_transforms(tree)))
+        expected = {self.parser.parse("SELECT 0;"),
+                    self.parser.parse("SELECT -1;"),
+                    self.parser.parse("SELECT 1;"),
+                    self.parser.parse("SELECT NULL;")}
+        self.assertEqual(expected, results)
 
     def test_neg_float(self):
         tree = self.parser.parse("SELECT -1.0;")
-        result = self.minimizer.transform(tree)
-        expected = self.parser.parse("SELECT -0.0;")
-        self.assertEqual(expected, result)
+        results = set(map(lambda x: self.pprinter.transform(x[1]), self.minimizer.all_transforms(tree)))
+        expected = {"SELECT 0.0;",
+                    "SELECT -1.0;",
+                    "SELECT 1.0;",
+                    "SELECT NULL;"}
+        self.assertEqual(expected, results)
 
-    def test_null(self):
-        tree = self.parser.parse("SELECT NULL;")
-        result = self.minimizer.transform(tree)
-        expected = self.parser.parse("SELECT NULL;")
-        self.assertEqual(expected, result)
+    def test_str_in_unrecognized(self):
+        # force parse error with SLCT
+        tree = self.parser.parse("SLCT 'bla';")
+        results = set(map(lambda x: self.pprinter.transform(x[1]), self.minimizer.all_transforms(tree)))
+        expected = {"SLCT '';",
+                    "SLCT NULL;"}
+        self.assertEqual(expected, results)
 
 
 class TokenRemoverTest(unittest.TestCase):
