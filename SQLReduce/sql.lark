@@ -93,7 +93,7 @@ table_name: (NAME DOT)? NAME
 column_name: NAME (DOT NAME)? (DOT NAME)?
            | STAR
 
-sql_type: NAME (LPAREN VALUE RPAREN)? (k_not VALUE)? (k_default default_expr)?
+sql_type: NAME NAME? (LPAREN VALUE RPAREN)? (k_not VALUE)? (k_default default_expr)?
 
 default_expr: LPAREN default_expr RPAREN | NAME? VALUE
 
