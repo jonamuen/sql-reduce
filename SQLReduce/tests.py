@@ -5,7 +5,7 @@ from lark import ParseError
 from utils import partial_equivalence, get_grammar
 from transformation import StatementRemover, PrettyPrinter, SimpleColumnRemover, ValueMinimizer, ExprSimplifier, \
     TokenRemover, TokenRemoverNonConsec, CompoundSimplifier, OptionalRemover, OptionalFinder, BalancedParenRemover, \
-    Canonicalizer
+    Canonicalizer, SROC
 from pathlib import Path
 from sql_parser import SQLParser
 from reducer import Reducer
@@ -686,6 +686,44 @@ class ValueMinimizerTest(unittest.TestCase):
                     "SLCT NULL;"}
         self.assertEqual(expected, results)
 
+
+class SROCTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
+        cls.replacer = SROC()
+        cls.pprinter = PrettyPrinter()
+        cls.replacements = ["''", '0', '1', '-1', 'NULL']
+
+    def test_simple(self):
+        tree = self.parser.parse("SELECT c0 FROM t0;")
+        results = set(map(lambda x: self.pprinter.transform(x[1]), self.replacer.all_transforms(tree)))
+        expected = {f"SELECT {x} FROM t0;" for x in self.replacements}
+        self.assertEqual(expected, results)
+
+    def test_where(self):
+        tree = self.parser.parse("SELECT c0 FROM t0 WHERE c0 > 0;")
+        results = set(map(lambda x: self.pprinter.transform(x[1]), self.replacer.all_transforms(tree)))
+        expected = {f"SELECT {x} FROM t0 WHERE c0 > 0;" for x in self.replacements}
+        expected |= {f"SELECT c0 FROM t0 WHERE {x} > 0;" for x in self.replacements}
+        expected |= {f"SELECT {x} FROM t0 WHERE {x} > 0;" for x in self.replacements}
+        self.assertEqual(expected, results)
+
+    def test_subquery(self):
+        tree = self.parser.parse("SELECT c0 FROM (SELECT c1 AS c0 FROM t0);")
+        results = set(map(lambda x: self.pprinter.transform(x[1]), self.replacer.all_transforms(tree)))
+        expected = {f"SELECT {x} FROM (SELECT {x} AS c0 FROM t0);" for x in self.replacements}
+        expected |= {f"SELECT {x} FROM (SELECT c1 AS c0 FROM t0);" for x in self.replacements}
+        expected |= {f"SELECT c0 FROM (SELECT {x} AS c0 FROM t0);" for x in self.replacements}
+        self.assertEqual(expected, results)
+
+    def test_nested_expr(self):
+        tree = self.parser.parse("SELECT (c0 + c1) FROM t0;")
+        results = set(map(lambda x: self.pprinter.transform(x[1]), self.replacer.all_transforms(tree)))
+        expected = {f"SELECT ({x} + c1) FROM t0;" for x in self.replacements}
+        expected |= {f"SELECT (c0 + {x}) FROM t0;" for x in self.replacements}
+        expected |= {f"SELECT ({x} + {x}) FROM t0;" for x in self.replacements}
+        self.assertEqual(expected, results)
 
 class TokenRemoverTest(unittest.TestCase):
     @classmethod
