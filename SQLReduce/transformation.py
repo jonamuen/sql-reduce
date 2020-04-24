@@ -163,6 +163,45 @@ class StatementRemover(AbstractTransformationsIterator):
             yield i
 
 
+class StatementRemoverByType(AbstractTransformationsIterator):
+    """
+    Remove sql statements by type of the statement. E.g. run:
+        self.set_up(['insert_stmt'])
+        reduced = self.transform(tree)
+    to remove all insert statements from the tree.
+    Consult sql.lark or run self.gen_reduction_params(tree) to find
+    other types of statements that can be removed.
+    """
+    def __init__(self, remove_list=None, multi_remove=False):
+        super().__init__(remove_list=remove_list, multi_remove=multi_remove)
+
+    def transform(self, tree):
+        print(self.remove_list)
+        if tree.data != 'sql_stmt_list':
+            raise ValueError('StatementRemoverByType: root of tree must be sql_stmt_list')
+        new_children = []
+        for c in tree.children:
+            if len(c.children) == 0:
+                logging.debug(f'StatementRemoverByType: Unexpectedly encountered empty node: {c}')
+                continue
+            if c.children[0].data not in self.remove_list:
+                new_children.append(c)
+        return NamedTree('sql_stmt_list', new_children, tree.meta)
+
+    def gen_reduction_params(self, tree):
+        if tree.data != 'sql_stmt_list':
+            raise ValueError('StatementRemoverByType: root of tree must be sql_stmt_list')
+        types = set()
+        for c in tree.children:
+            if len(c.children) == 0:
+                logging.debug(f'StatementRemoverByType: Unexpectedly encountered empty node: {c}')
+                continue
+            t = c.children[0].data
+            if t not in types:
+                yield t
+                types.add(t)
+
+
 class ValueMinimizer(Transformer, AbstractTransformationsIterator):
     """
     Reduce string and number (int or float) literals.

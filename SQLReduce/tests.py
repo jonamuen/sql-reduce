@@ -5,7 +5,7 @@ from lark import ParseError
 from utils import partial_equivalence, get_grammar
 from transformation import StatementRemover, PrettyPrinter, SimpleColumnRemover, ValueMinimizer, ExprSimplifier, \
     TokenRemover, TokenRemoverNonConsec, CompoundSimplifier, OptionalRemover, OptionalFinder, BalancedParenRemover, \
-    Canonicalizer, SROC
+    Canonicalizer, SROC, StatementRemoverByType
 from pathlib import Path
 from sql_parser import SQLParser
 from reducer import Reducer
@@ -300,7 +300,7 @@ class SQLSmithFuzzTests(unittest.TestCase):
         self.assertEqual(total, recognized)
 
 
-class DiscardTest(unittest.TestCase):
+class StatementRemoverTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
@@ -348,6 +348,28 @@ class DiscardTest(unittest.TestCase):
                         self.assertEqual(self.tree.children[i], remaining_stmts[j])
                         j += 1
                     i += 1
+
+
+class StatementRemoverByTypeTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
+
+    def test_insert(self):
+        stmt = "CREATE TABLE t0(c0 INT); INSERT INTO t0 VALUES (3);"
+        tree = self.parser.parse(stmt)
+        remover = StatementRemoverByType()
+        results = set(map(lambda x: PrettyPrinter().transform(x[1]), remover.all_transforms(tree)))
+        expected = {"CREATE TABLE t0 (c0 INT);", "INSERT INTO t0 VALUES (3);"}
+        self.assertEqual(expected, results)
+
+    def test_multi_remove(self):
+        stmt = "CREATE TABLE t0(c0 INT); INSERT INTO t0 VALUES (3);"
+        tree = self.parser.parse(stmt)
+        remover = StatementRemoverByType(multi_remove=True)
+        results = set(map(lambda x: PrettyPrinter().transform(x[1]), remover.all_transforms(tree)))
+        expected = {"", "CREATE TABLE t0 (c0 INT);", "INSERT INTO t0 VALUES (3);"}
+        self.assertEqual(expected, results)
 
 
 class PrettyPrinterTest(unittest.TestCase):
