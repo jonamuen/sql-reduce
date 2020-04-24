@@ -32,7 +32,9 @@ class AbstractTransformationsIterator(Transformable):
         self.multi_remove = multi_remove
 
     def gen_reduction_params(self, tree):
-        raise NotImplementedError
+        self.set_up([])
+        _ = self.transform(tree)
+        return range(self.index)
 
     def set_up(self, remove_list):
         self.remove_list = remove_list
@@ -265,12 +267,6 @@ class ValueMinimizer(Transformer, AbstractTransformationsIterator):
         self.index += 1
         return token
 
-    def gen_reduction_params(self, tree):
-        self.set_up([])
-        _ = self.transform(tree)
-        for i in range(self.index):
-            yield i
-
     def all_transforms(self, tree: Tree, progress: int = 0) -> Iterator[Tuple[int, Tree]]:
         """
         Important: since some replacement values (e.g. NULL) can be longer than the
@@ -347,12 +343,6 @@ class SROC(AbstractTransformationsIterator):
         super().set_up(remove_list)
         self.in_from_clause = 0
 
-    def gen_reduction_params(self, tree):
-        self.set_up([])
-        _ = self.transform(tree)
-        for i in range(self.index):
-            yield i
-
     def all_transforms(self, tree: Tree, progress: int = 0) -> Iterator[Tuple[int, Tree]]:
         for val in ["''", '0', '1', '-1', 'NULL']:
             self.replacement_value = val
@@ -364,12 +354,6 @@ class BalancedParenRemover(Transformer, AbstractTransformationsIterator):
     def __init__(self, remove_list=None, multi_remove=True):
         Transformer.__init__(self)
         AbstractTransformationsIterator.__init__(self, remove_list=remove_list, multi_remove=multi_remove)
-
-    def gen_reduction_params(self, tree):
-        self.set_up([])
-        _ = self.transform(tree)
-        for i in range(self.index):
-            yield i
 
     def __default__(self, data, children, meta):
         par_indices = []  # list of tuples of indices of corresponding LPAREN and RPAREN
@@ -452,12 +436,6 @@ class ExprSimplifier(Transformer, AbstractTransformationsIterator):
 
     def transform(self, tree):
         return Transformer.transform(self, tree)
-
-    def gen_reduction_params(self, tree):
-        self.set_up([])
-        _ = self.transform(tree)
-        for i in range(0, self.index):
-            yield i
 
 
 class SimpleColumnRemover(AbstractTransformationsIterator):
@@ -563,12 +541,6 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
         self.index += num_columns
         return tree
 
-    def gen_reduction_params(self, tree):
-        self.set_up([])
-        _ = self.transform(tree)
-        for i in range(self.index):
-            yield i
-
 
 class Canonicalizer(Transformer, AbstractTransformationsIterator):
     """
@@ -599,12 +571,6 @@ class Canonicalizer(Transformer, AbstractTransformationsIterator):
                 tree.children[1] = NamedTree('sql_type', [DataToken('NAME', 'INT')])
             self.index += 1
         return tree
-
-    def gen_reduction_params(self, tree):
-        self.set_up([])
-        _ = self.transform(tree)
-        for i in range(self.index):
-            yield i
 
 
 class CompoundSimplifier(Transformer, AbstractTransformationsIterator):
@@ -644,12 +610,6 @@ class CompoundSimplifier(Transformer, AbstractTransformationsIterator):
         if type(tree) != NamedTree:
             tree = NamedTreeConstructor().transform(tree)
         return super().transform(tree)
-
-    def gen_reduction_params(self, tree):
-        self.set_up([])
-        _ = self.transform(tree)
-        for i in range(self.index):
-            yield i
 
 
 class OptionalFinder(Transformer):
@@ -725,12 +685,6 @@ class OptionalRemover(Transformer, AbstractTransformationsIterator):
             del children[i]
 
         return Tree(data, children, meta)
-
-    def gen_reduction_params(self, tree):
-        self.set_up([])
-        _ = self.transform(tree)
-        for i in range(self.index):
-            yield i
 
 
 class ListItemRemover(AbstractTransformationsIterator):
