@@ -6,21 +6,26 @@ from named_tree import NamedTree, NamedTreeConstructor, DataToken
 from itertools import combinations
 from math import comb
 import logging
-from time import time
 
 
-class Transformable:
-    def transform(self, tree):
-        raise NotImplementedError
-
-
-class AbstractTransformationsIterator(Transformable):
+class AbstractTransformationsIterator:
     """
     The all_transforms method should yield all transformations that can be
     performed by a given reducer. The parameter progress is used to resume
     the iterator from where it left off. This avoids the problem that the first
     reduction opportunities are attempted for each invocation of all_transforms,
     while later reduction opportunities are never reached.
+
+    Generally, it is preferred to use the all_transforms iterator, since it
+    handles generation of reduction parameters and calls to set_up. If it is
+    necessary to generate only a specific reduction, snippet works for all
+    classes that don't provide a custom all_transforms method:
+        tr = MyTransformer()
+        params = [x for x in gen_reduction_params(tree)]
+        tr.set_up(sublist_of_params)
+        tr.transform(tree)
+
+    Note: progress is ignored if multi_remove is True.
     """
 
     def __init__(self, remove_list=None, multi_remove=True):
@@ -32,6 +37,12 @@ class AbstractTransformationsIterator(Transformable):
         self.multi_remove = multi_remove
 
     def gen_reduction_params(self, tree):
+        """
+        Provide an iterator of valid reduction parameters for a given tree. For
+        instance, the default implementation yields all indices of reducible items.
+        :param tree:
+        :return:
+        """
         self.set_up([])
         _ = self.transform(tree)
         return range(self.index)
@@ -39,6 +50,9 @@ class AbstractTransformationsIterator(Transformable):
     def set_up(self, remove_list):
         self.remove_list = remove_list
         self.index = 0
+
+    def transform(self, tree):
+        raise NotImplementedError
 
     def all_transforms(self, tree: Tree, progress: int = 0) -> Iterator[Tuple[int, Tree]]:
         # TODO: turn multi_remove flag into more general strategy-hint, e.g. {single, aggressive, consecutive(k)}
@@ -112,8 +126,9 @@ class PrettyPrinter(Transformer):
         """
         Return string representation of common list like patterns (e.g. list of
         columns in an INSERT statement).
-        :param children:
-        :return:
+        :param children: list of list items
+        :param sep: character(s) to insert between list items
+        :return: str
         """
         s = ""
         for c in children:
@@ -123,11 +138,12 @@ class PrettyPrinter(Transformer):
     def __default__(self, data, children, meta):
         s = ""
         for c in children:
-            # no space before ";", ")", ","
-            if c == ";" or c == ")" or c == "," or c == ".":
+            # no space before ";", ")", "," and "."
+            if c in (";", ")", ",", "."):
                 s = s.rstrip()
             s += (c + " ")
-            if c == "(" or c == "::" or c == ".":
+            # no space after "(", "::" and "."
+            if c in ("(", "::", "."):
                 s = s.rstrip()
         return s.rstrip()
 
@@ -137,7 +153,7 @@ class StatementRemover(AbstractTransformationsIterator):
     Remove the statements at the indices indicated by remove_indices.
 
     :param: remove_indices: list or set of integers. Overwritten by all_transforms
-    :param: max_iterations: all_transforms yields at most this many reductions
+    :param: multi_remove: ignored, always set to True
     """
     def __init__(self, remove_list=None, multi_remove=True):
         AbstractTransformationsIterator.__init__(self, remove_list=remove_list, multi_remove=True)
@@ -297,7 +313,12 @@ class ValueMinimizer(Transformer, AbstractTransformationsIterator):
 
 class SROC(AbstractTransformationsIterator):
     """
-    Scalar Replacement Of Column names in expressions
+    Scalar Replacement Of Column names in expressions.
+
+    Since expressions can also occur in from_clauses, where they shouldn't be
+    reduced, the in_from_clause field keeps track of this.
+    However, if there is a subquery in a from_clause,
+    reduction is re-enabled.
     """
     def __init__(self, remove_list=None, multi_remove=True, replacement_value='0'):
         AbstractTransformationsIterator.__init__(self, remove_list=remove_list, multi_remove=multi_remove)
@@ -351,6 +372,9 @@ class SROC(AbstractTransformationsIterator):
 
 
 class BalancedParenRemover(Transformer, AbstractTransformationsIterator):
+    """
+    Remove balanced parentheses.
+    """
     def __init__(self, remove_list=None, multi_remove=True):
         Transformer.__init__(self)
         AbstractTransformationsIterator.__init__(self, remove_list=remove_list, multi_remove=multi_remove)
@@ -442,16 +466,17 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
     """
     A simple reduction pass that tries to remove single columns from insert,
     update and create table statements. It doesn't handle aliases and doesn't
-    guarantee syntactically valid results (although most results probably are
-    syntactically valid). The index is counted across all column references.
+    guarantee syntactically valid results (for instance, it might remove all
+    column definitions from a CREATE TABLE statement). The index is counted
+    across all column references.
     Example:
-        INSERT INTO t0 VALUES (2, 1); INSERT INTO t1 (c0) VALUES (3);
+        INSERT INTO t0 VALUES (2, 1);
+        INSERT INTO t1 (c0) VALUES (3);
         UPDATE t0 SET c2=1;
+
         2 is at index 0.
         c0 is at index 2.
         c2 is at index 3.
-
-    :param remove_list: list of indices of columns that should be removed.
     """
     def _default(self, tree):
         return NamedTree(tree.data, list(map(self.transform, tree.children)))
@@ -576,6 +601,9 @@ class Canonicalizer(Transformer, AbstractTransformationsIterator):
 class CompoundSimplifier(Transformer, AbstractTransformationsIterator):
     """
     Simplify compound expressions (UNION, INTERSECT, EXCEPT).
+    Example:
+        SELECT 3 UNION SELECT 2;
+        --> SELECT 2;
     """
     def __init__(self, remove_list=None, multi_remove=True):
         Transformer.__init__(self)
@@ -613,6 +641,17 @@ class CompoundSimplifier(Transformer, AbstractTransformationsIterator):
 
 
 class OptionalFinder(Transformer):
+    """
+    Find optional rules/tokens in a grammar. Only single rules/tokens
+    are supported.
+
+    Examples:
+        INPUT: parse tree for 'expr: k_not? expr_helper operator expr'
+        OUTPUT: {'expr': 'k_not'}
+
+        INPUT: parse tree for 'table_name: (NAME DOT)? NAME'
+        OUTPUT: {}
+    """
     def __init__(self, t='?'):
         super().__init__()
         self.type = t
@@ -657,9 +696,19 @@ class OptionalFinder(Transformer):
 
 
 class OptionalRemover(Transformer, AbstractTransformationsIterator):
-    def __init__(self, remove_list=None, multi_remove=False, optionals=None):
+    """
+    Remove optional tokens/rules from a parse tree. Best used with OptionalFinder
+    to automatically generate a dictionary of optionals.
+    """
+    def __init__(self, remove_list=None, multi_remove=True, optionals=None):
+        """
+        Set up with list of optionals.
+        :param remove_list: as usual (see super class)
+        :param multi_remove: as usual (see super class)
+        :param optionals: dict mapping from rule names to set of optionals for that rule
+        """
         Transformer.__init__(self)
-        AbstractTransformationsIterator.__init__(self, remove_list=remove_list, multi_remove=True)
+        AbstractTransformationsIterator.__init__(self, remove_list=remove_list, multi_remove=multi_remove)
         if optionals is None:
             optionals = dict()
         self.optionals = optionals
@@ -689,8 +738,22 @@ class OptionalRemover(Transformer, AbstractTransformationsIterator):
 
 class ListItemRemover(AbstractTransformationsIterator):
     """
-    Simultaneously remove multiple items from list expressions in an unexpected
-    statement.
+    Remove items at a given index from all list_expr in a statement.
+    (Note: list_expr (from unrecognized.lark) shouldn't be confused with
+           expr_list (from sql.lark).)
+
+    Example:
+    Consider the following statement:
+        INSERT INTO t0 (c0, c1) VALUES (0, 1), (2, 3);
+                      list_expr     list_expr list_expr
+    Suppose this couldn't be parsed with sql.lark.
+    Thus, the parser would fall back onto unrecognized.lark and parse this into
+    the three list_expr indicated above (and some other irrelevant stuff). Removing items for each of
+    them individually won't work. Thus, ListItemRemover removes the items at the
+    same index for all list_expr simultaneously:
+        INSERT INTO t0 (c1) VALUES (1), (3);
+    Of course, this is just a heuristic. There could be cases where removing items
+    at the same index simultaneously doesn't make any sense.
     """
     def __init__(self, remove_index=(0, 0), multi_remove=True):
         super().__init__(multi_remove=multi_remove)
@@ -742,8 +805,15 @@ class ListItemRemover(AbstractTransformationsIterator):
             for j in range(0, max_lengths[i]):
                 yield i, j
 
-
+# TODO: expose max_consec
 class TokenRemover(Transformer, AbstractTransformationsIterator):
+    """
+    Remove one or multiple consecutive tokens from a single statement.
+
+    The current behaviour is to remove a group of one to three
+    consecutive tokens from a sql statement. all_transforms yields all such
+    reductions.
+    """
     def __init__(self, remove_indices=None, multi_remove=False):
         Transformer.__init__(self)
         AbstractTransformationsIterator.__init__(self, multi_remove=False)
@@ -819,8 +889,11 @@ class TokenRemover(Transformer, AbstractTransformationsIterator):
             self.set_up(param)
             yield i, self.transform(tree)
 
-
+# TODO: expose max_simult
 class TokenRemoverNonConsec(TokenRemover):
+    """
+    Remove any two tokens (consecutive or non-consecutive) from a sql statement.
+    """
     def gen_reduction_params(self, tree):
         max_simult = 2
         self.set_up([])
