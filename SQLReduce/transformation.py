@@ -289,21 +289,21 @@ class ValueMinimizer(Transformer, AbstractTransformationsIterator):
         original value, the result might be longer than the input!
 
         Invoke all_transforms of superclass for the following replacement values:
-        str: "''", "NULL"
-        int/float: "0", "-1", "1", "NULL"
+        str: "NULL", "''"
+        int/float: "NULL", "0", "-1", "1"
         :param tree: parse tree that should be reduced
         :param progress: ignored
         :return:
         """
         # first attempt to reduce string literals
-        for replace_str in ["''", "NULL"]:
+        for replace_str in ["NULL", "''"]:
             self.replace_str = replace_str
             self.replace_int = None
             self.replace_float = None
             for res in AbstractTransformationsIterator.all_transforms(self, tree):
                 yield res
         # reduce number literals
-        for replace_int, replace_float in [('0', '0.0'), ('-1', '-1.0'), ('1', '1.0'), ('NULL', 'NULL')]:
+        for replace_int, replace_float in [('NULL', 'NULL'), ('0', '0.0'), ('-1', '-1.0'), ('1', '1.0')]:
             self.replace_str = None
             self.replace_int = replace_int
             self.replace_float = replace_float
@@ -469,6 +469,8 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
     guarantee syntactically valid results (for instance, it might remove all
     column definitions from a CREATE TABLE statement). The index is counted
     across all column references.
+
+    Also removes table constraints.
     Example:
         INSERT INTO t0 VALUES (2, 1);
         INSERT INTO t1 (c0) VALUES (3);

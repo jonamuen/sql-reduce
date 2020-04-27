@@ -11,12 +11,14 @@ sql_stmt: select_stmt_full
 // add WITH
 select_stmt_full: with_clause? select_stmt_helper
 
+// resolve shift/reduce conflicts by forcing left associativity
 select_stmt_helper: select_stmt_helper compound_operator select_stmt | select_stmt
 select_stmt.1: k_select k_distinct? subquery_or_expr_list from_clause? \
                 where_clause? (group_by_clause having_clause?)? order_by_clause? limit_clause? offset_clause?
 
+// TODO: implement constraints properly
 create_table_stmt.1: k_create k_table (k_if k_not k_exists)? table_name\
-                        LPAREN column_def_list RPAREN constraint?
+                        LPAREN column_def_list RPAREN
 
 create_view_stmt: k_create k_view table_name k_as LPAREN subquery_or_expr_as RPAREN
 
@@ -36,26 +38,20 @@ value_tuple: "(" expr ("," expr)* ")"
 
 assign_list: column_name EQUAL VALUE ("," column_name EQUAL VALUE)*
 
-// include VALUE to ensure semicolons in strings are handled properly
-// use column_name to match any unidentified keyword or column name
-unexpected_stmt.0: (ERR | VALUE | LPAREN unexpected_stmt RPAREN) +
-
-ERR.0: /.+?/
-
 subquery_or_expr_list: subquery_or_expr_as ("," subquery_or_expr_as)*
 
 subquery_or_expr_as: k_all? expr (k_as NAME)?
 
 with_clause: k_with k_recursive? column_name k_as LPAREN select_stmt_helper RPAREN
 
-// TODO: expr not allowed here
 from_clause: k_from subquery_or_expr_as join_clause*
 
-column_def_list: column_def ("," column_def)*
+// table_constraint included here so that they are reduced by ColumnRemover
+column_def_list: column_def ("," column_def)* ("," table_constraint)*
 
-column_def: NAME sql_type? constraint?
+column_def: NAME sql_type? column_constraint*
 
-join_clause: (k_inner | k_left | k_right | k_full k_outer)? k_join \
+join_clause: (((k_inner | (k_left k_outer?) | (k_right k_outer?) | (k_full k_outer?))? k_join) | ",") \
                 subquery_or_expr_as (k_on expr)?
 
 where_clause: k_where expr
@@ -77,6 +73,7 @@ expr_helper: LPAREN expr RPAREN
            | LPAREN select_stmt_helper RPAREN
            | column_name
            | (sql_type)? VALUE
+           | k_notnull
            | k_cast LPAREN expr k_as sql_type RPAREN
            | k_nullif LPAREN expr COMMA expr RPAREN
            | k_coalesce LPAREN subquery_or_expr_list RPAREN
@@ -84,6 +81,7 @@ expr_helper: LPAREN expr RPAREN
            | k_case expr? case_list k_end
            | k_any LPAREN expr RPAREN
            | agg_func LPAREN expr RPAREN
+           | k_concat LPAREN subquery_or_expr_list RPAREN
 
 agg_func: k_min | k_max | k_sum | k_avg | k_total | k_count
 
@@ -93,15 +91,31 @@ table_name: (NAME DOT)? NAME
 column_name: NAME (DOT NAME)? (DOT NAME)?
            | STAR
 
-sql_type: NAME NAME? (LPAREN VALUE RPAREN)? (k_not VALUE)? (k_default default_expr)?
+sql_type: NAME NAME? (LPAREN VALUE RPAREN)?
 
-default_expr: LPAREN default_expr RPAREN | NAME? VALUE
+column_constraint: (k_constraint NAME)? ((k_check LPAREN expr RPAREN) | (k_not VALUE conflict_clause?) \
+                                        | (k_unique conflict_clause?) | (k_default expr) | (k_primary k_key (k_asc | k_desc)? conflict_clause?) \
+                                        | (k_collate NAME))
 
-constraint: k_check expr
+table_constraint.2: (k_constraint NAME)? (((k_primary k_key | k_unique) LPAREN name_list RPAREN conflict_clause?)
+                                        | (k_check LPAREN expr RPAREN)
+                                        | (k_foreign k_key LPAREN name_list RPAREN fk_clause))
 
-// TODO: add more operators
+conflict_clause: k_on k_conflict (k_rollback | k_abort | k_fail | k_ignore | k_replace)
+
+fk_clause: k_references table_name (LPAREN name_list RPAREN)? fk_conflict_clause? fk_defer?
+
+fk_conflict_clause: (fk_action | k_match NAME)+
+
+fk_action: k_on (k_delete | k_update) (k_set VALUE | k_set k_default | k_cascade \
+                                      | k_restrict | k_no k_action)
+
+fk_defer: k_not? k_deferrable (k_initially (k_deferred | k_immediate))?
+
+name_list: NAME ("," NAME)*
+// TODO: add BETWEEN operator
 operator: PLUS | MINUS | STAR | SLASH | EQUAL | NEQ | GREATER | LESS | k_is
-        | k_or | k_and | LEQ | GEQ
+        | k_or | k_and | LEQ | GEQ | k_in
 
 compound_operator: (k_union k_all?) | k_intersect | k_except
 
@@ -157,7 +171,7 @@ compound_operator: (k_union k_all?) | k_intersect | k_except
 !k_except: "EXCEPT" | "except"
 !k_if: "IF" | "if"
 !k_default: "DEFAULT" | "default"
-!k_check: "CHECK" | "check"
+!k_check: CHECK
 !k_group: "GROUP" | "group"
 !k_having: "HAVING" | "having"
 !k_sum: "SUM" | "sum"
@@ -165,6 +179,31 @@ compound_operator: (k_union k_all?) | k_intersect | k_except
 !k_total: "TOTAL" | "total"
 !k_count: "COUNT" | "count"
 !k_recursive: "RECURSIVE" | "recursive"
+!k_in: "IN" | "in"
+!k_concat: "CONCAT" | "concat"
+!k_primary: PRIMARY
+!k_key: KEY
+!k_unique: UNIQUE
+!k_foreign: FOREIGN
+!k_references: "REFERENCES" | "references"
+!k_abort: "ABORT" | "abort"
+!k_rollback: "ROLLBACK" | "rollback"
+!k_fail: "FAIL" | "fail"
+!k_replace: "REPLACE" | "replace"
+!k_ignore: "IGNORE" | "ignore"
+!k_conflict: "CONFLICT" | "conflict"
+!k_match: "MATCH" | "match"
+!k_restrict: "RESTRICT" | "restrict"
+!k_no: "NO" | "no"
+!k_action: "ACTION" | "action"
+!k_cascade: "CASCADE" | "cascade"
+!k_deferred: "DEFERRED" | "deferred"
+!k_deferrable: "DEFERRABLE" | "deferrable"
+!k_initially: "INITIALLY" | "initially"
+!k_immediate: "IMMEDIATE" | "immediate"
+!k_constraint: "CONSTRAINT" | "constraint"
+!k_collate: "COLLATE" | "collate"
+!k_notnull: "NOT NULL" | "not null"
 
 PLUS: "+"
 MINUS: "-"
@@ -184,10 +223,21 @@ RPAREN: ")"
 
 NULLIF.3: /(NULLIF)|(nullif)/
 
-NAME.2: /[a-zA-Z_]/ /[a-zA-Z0-9_]*/
+FOREIGN.3: /(FOREIGN)|(foreign)/
+
+CHECK.3: /(CHECK)|(check)/
+
+PRIMARY.3: /(PRIMARY)|(primary)/
+
+UNIQUE.3: /(UNIQUE)|(unique)/
+
+CONSTRAINT.3: /(CONSTRAINT)|(constraint)/
+
+KEY.3: /(KEY)|(key)/
+
+NAME.2: /[a-zA-Z_]/ /[a-zA-Z0-9_]*/ | /"([^"]|"")*"/
 
 VALUE.2: /'([^']|'')*'/
-       | /"([^"]|"")*"/
        | ("+"|"-")? /[0-9]+/ /(\.[0-9]*)/?
        | "NULL"
        | "null"

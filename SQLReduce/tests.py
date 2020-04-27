@@ -193,6 +193,19 @@ class ParserTest(unittest.TestCase):
         tree = self.parser.parse(stmt)
         self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
 
+    def test_constraints(self):
+        stmt = "create table t0 (" \
+               "  c0 INT UNIQUE," \
+               "  c1 TIMESTAMP DEFAULT (TIMESTAMP '1970-01-04')," \
+               "  c2 VARCHAR(128) NOT NULL," \
+               "  c3 PRIMARY KEY ON CONFLICT ROLLBACK," \
+               "  c4 CHECK (3 + 4)," \
+               "  CONSTRAINT \"fk_0\" FOREIGN KEY (id) REFERENCES t1 ON UPDATE CASCADE ON DELETE RESTRICT);"
+        tree = self.parser.parse(stmt)
+        print(tree)
+        self.assertEqual(0, len(list(tree.find_data('unexpected_stmt'))))
+        self.assertEqual(5, len(list(tree.find_data('column_constraint'))))
+
     def test_multiple_stmts(self):
         tree = self.parser.parse("CREATE TABLE t0 (id INT); SELECT id FROM t0;")
         expected_partial =\
@@ -211,12 +224,12 @@ class ParserTest(unittest.TestCase):
 
     def test_reduced_1(self):
         stmt0 = "CREATE TABLE IF NOT EXISTS t0 (" \
-               "c0 TIMESTAMP DEFAULT (TIMESTAMP '1970-01-04')," \
-               "c1 INT2," \
-               "c2 INTERVAL NOT NULL  DEFAULT " \
-               "((INTERVAL '325458769 year 2060662154 months 321274645 " \
-               "days 327813599 hours 325431290 minutes -725505005 seconds'))" \
-               "CHECK (true));"
+                "c0 TIMESTAMP DEFAULT (TIMESTAMP '1970-01-04')," \
+                "c1 INT2," \
+                "c2 INTERVAL NOT NULL  DEFAULT " \
+                "((INTERVAL '325458769 year 2060662154 months 321274645 " \
+                "days 327813599 hours 325431290 minutes -725505005 seconds'))" \
+                "CHECK (true));"
         tree = self.parser.parse(stmt0)
         self.assertEqual(0, len(list(tree.find_data('unexpected_stmt'))))
         stmt1 = "UPSERT INTO t0 (c0, c2) " \
@@ -239,6 +252,24 @@ class ParserTest(unittest.TestCase):
                 "UNION ALL SELECT MIN ('') as agg0 FROM t1 WHERE (NOT (((((-9223372036854775808) ::TIMESTAMP)) != (t1.c1)))) " \
                 "UNION ALL SELECT ALL MIN ('') as agg0 FROM t1 WHERE ((((((-9223372036854775808) ::TIMESTAMP)) != (t1.c1))) IS NULL));"
         tree = self.parser.parse(stmt1)
+        self.assertEqual(0, len(list(tree.find_data('unexpected_stmt'))))
+
+    def test_reduced3(self):
+        # from issue 6
+        stmt = "SELECT t1.c0 FROM t1, t2, t0 WHERE ((CONCAT ((t2.c0))) OR ((t0.c0))) UNION SELECT t1.c0 FROM t1, t2, t0 UNION SELECT t1.c0 FROM t1, t2, t0;"
+        tree = self.parser.parse(stmt)
+        self.assertEqual(0, len(list(tree.find_data('unexpected_stmt'))))
+
+    def test_reduced4(self):
+        # from issue 7
+        stmt = "CREATE TABLE t1 (c0 VARCHAR, c1 DOUBLE, PRIMARY KEY (c1));"
+        tree = self.parser.parse(stmt)
+        self.assertEqual(0, len(list(tree.find_data('unexpected_stmt'))))
+
+    def test_reduced5(self):
+        # from issue 8
+        stmt = "SELECT * FROM t0 WHERE (CASE WHEN (-2092433129 IN (1686547025)) THEN false WHEN (CASE WHEN t0.c0 THEN t0.c0 END) THEN t0.c0 ELSE (CASE '0.4787559219485703' WHEN t0.c0 THEN 0.17285714289053367 WHEN t0.c0 THEN '^h' END) END) UNION SELECT * FROM t0 WHERE ((CASE WHEN (CASE WHEN t0.c0 THEN t0.c0 END) THEN (CASE WHEN t0.c0 THEN '^h' END) END)) UNION SELECT * FROM t0 WHERE (((CASE WHEN (CASE WHEN t0.c0 THEN t0.c0 END) THEN (CASE WHEN t0.c0 THEN '^h' END) END)));"
+        tree = self.parser.parse(stmt)
         self.assertEqual(0, len(list(tree.find_data('unexpected_stmt'))))
 
 
@@ -561,6 +592,14 @@ class SimpleColumnRemoverTest(unittest.TestCase):
         expected = self.parser.parse("UPDATE t0 SET c0=0;")
         self.assertEqual(expected, result)
 
+    def test_constraints(self):
+        stmt = "CREATE TABLE t0 (id INT UNIQUE, FOREIGN KEY (id) REFERENCES t1);"
+        expected = ["CREATE TABLE t0 (FOREIGN KEY (id) REFERENCES t1);",
+                    "CREATE TABLE t0 (id INT UNIQUE);"]
+        results = list(map(lambda x: PrettyPrinter().transform(x[1]), self.scrm.all_transforms(self.parser.parse(stmt))))
+        for exp in expected:
+            self.assertIn(exp, results)
+
     def test_all_transforms(self):
         stmt = "INSERT INTO t0(c0, c1, c2) VALUES (0, 1, 2), (2, 1, 0);"
         expected = [
@@ -761,7 +800,7 @@ class TokenRemoverTest(unittest.TestCase):
         self.assertEqual(expected, result)
 
     def test_constraint(self):
-        tree = self.parser.parse("CREATE TABLE IF NOT EXISTS t0 (c2 INTERVAL) CHECK (true);")
+        tree = self.parser.parse("CREATE TABLE IF NOT EXISTS t0 (c2 INTERVAL CHECK (true));")
         expected = self.parser.parse("CREATE TABLE IF NOT EXISTS t0 (c2 INTERVAL);")
         results = [x for _, x in self.trm.all_transforms(tree)]
         self.assertIn(expected, results)
