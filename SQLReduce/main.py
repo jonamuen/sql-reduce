@@ -2,7 +2,8 @@
 import argparse
 
 from reducer import Reducer
-from transformation import StatementRemover, SimpleColumnRemover, ExprSimplifier, PrettyPrinter, ListItemRemover, TokenRemover, TokenRemoverNonConsec, OptionalRemover, CompoundSimplifier, OptionalFinder
+from transformation import StatementRemover, SimpleColumnRemover, ExprSimplifier, PrettyPrinter, ListItemRemover, TokenRemover,\
+    TokenRemoverNonConsec, OptionalRemover, CompoundSimplifier, OptionalFinder, BalancedParenRemover, Canonicalizer, SROC, ValueMinimizer
 from verifier import Verifier
 from sql_parser import SQLParser
 from time import time
@@ -27,11 +28,11 @@ def main():
     sql_grammar = get_grammar('sql.lark', 'lark.lark')
     optionals = OptionalFinder().transform(sql_grammar)
     reduction_passes = [StatementRemover(), OptionalRemover(optionals=optionals), CompoundSimplifier(), SimpleColumnRemover(),
-                        ExprSimplifier(), ListItemRemover(), TokenRemover(), TokenRemoverNonConsec()]
+                        ExprSimplifier(), ListItemRemover(), BalancedParenRemover(), TokenRemover(), TokenRemoverNonConsec()]
 
     reducer = Reducer(SQLParser('sql.lark', start="sql_stmt_list", debug=False, parser='lalr'),
                       Verifier(args.verifier, 'test.sql'),
-                      reduction_passes)
+                      reduction_passes, canonicalizations=[ValueMinimizer(), Canonicalizer(), SROC()])
     with open(args.sql) as f:
         stmt = f.read()
 

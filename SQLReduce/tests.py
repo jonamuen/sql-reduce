@@ -845,7 +845,7 @@ class ReducerTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
         verifier = SQLiteReturnSetVerifier("test/test_reduce.sqlite")
-        cls.reducer = Reducer(parser, verifier, [StatementRemover(), SimpleColumnRemover(), ExprSimplifier()])
+        cls.reducer = Reducer(parser, verifier, [StatementRemover(), SimpleColumnRemover(), ExprSimplifier()], [])
         cls.pprinter = PrettyPrinter()
 
     def test_unneeded_inserts_and_tables(self):
@@ -864,8 +864,7 @@ class ReducerTest(unittest.TestCase):
                    "SELECT * FROM t0 WHERE id = 0;"
 
         result = self.reducer.reduce(stmt)
-        result_str = self.pprinter.transform(result)
-        self.assertEqual(expected, result_str)
+        self.assertEqual(expected, result)
 
     def test_remove_unneeded_columns(self):
         stmt = "CREATE TABLE t0 (c0 INT, c1 INT);" \
@@ -878,15 +877,14 @@ class ReducerTest(unittest.TestCase):
                    "SELECT c0 FROM t0;"
 
         result = self.reducer.reduce(stmt)
-        result_str = self.pprinter.transform(result)
-        self.assertEqual(expected, result_str)
+        self.assertEqual(expected, result)
 
     def test_expr_simplification(self):
         stmt = "SELECT 1*(3+4)+(0);"
         expected = "SELECT 3 + 4;"
 
         result = self.reducer.reduce(stmt)
-        self.assertEqual(expected, self.pprinter.transform(result))
+        self.assertEqual(expected, result)
 
 
 @unittest.skip
@@ -898,44 +896,47 @@ class DuckDBReducerTest(unittest.TestCase):
         cls.reduction_passes = [StatementRemover(), OptionalRemover(optionals=optionals), CompoundSimplifier(),
                                 SimpleColumnRemover(), ExprSimplifier(), BalancedParenRemover(),
                                 TokenRemover(), TokenRemoverNonConsec()]
+        cls.canonicalizations = [ValueMinimizer(), Canonicalizer(), SROC()]
 
     def test_duckdb_issue3(self):
         with open('test/real_testcases/duckdb/issue3.sql') as f:
             stmt = f.read()
-        reducer = Reducer(self.parser, DuckDBVerifier(stmt, no_subprocess=True), self.reduction_passes)
+        reducer = Reducer(self.parser, DuckDBVerifier(stmt, no_subprocess=False),
+                          self.reduction_passes, self.canonicalizations)
         print(PrettyPrinter().transform(reducer.reduce(stmt)))
 
     def test_duckdb_issue4(self):
         with open('test/real_testcases/duckdb/issue4.sql') as f:
             stmt = f.read()
-        reducer = Reducer(self.parser, DuckDBVerifier(stmt), self.reduction_passes)
+        reducer = Reducer(self.parser, DuckDBVerifier(stmt), self.reduction_passes, self.canonicalizations)
         print(PrettyPrinter().transform(reducer.reduce(stmt)))
 
     def test_duckdb_issue5(self):
         # requires c52fc9b or 5c4cde5
         with open('test/real_testcases/duckdb/issue5.sql') as f:
             stmt = f.read()
-        reducer = Reducer(self.parser, DuckDBVerifier(stmt, no_subprocess=True), self.reduction_passes)
+        reducer = Reducer(self.parser, DuckDBVerifier(stmt, no_subprocess=True),
+                          self.reduction_passes, self.canonicalizations)
         print(PrettyPrinter().transform(reducer.reduce(stmt)))
 
     def test_duckdb_issue6(self):
         # requires unknown commit
         with open('test/real_testcases/duckdb/issue6.sql') as f:
             stmt = f.read()
-        reducer = Reducer(self.parser, DuckDBVerifier(stmt), self.reduction_passes)
+        reducer = Reducer(self.parser, DuckDBVerifier(stmt), self.reduction_passes, self.canonicalizations)
         print(PrettyPrinter().transform(reducer.reduce(stmt)))
 
     def test_duckdb_issue7(self):
         with open('test/real_testcases/duckdb/issue7.sql') as f:
             stmt = f.read()
-        reducer = Reducer(self.parser, DuckDBVerifier(stmt), self.reduction_passes)
+        reducer = Reducer(self.parser, DuckDBVerifier(stmt), self.reduction_passes, self.canonicalizations)
         print(PrettyPrinter().transform(reducer.reduce(stmt)))
 
     def test_duckdb_issue8(self):
         # requires debug build f3c7d39 to reproduce
         with open('test/real_testcases/duckdb/issue8.sql') as f:
             stmt = f.read()
-        reducer = Reducer(self.parser, DuckDBVerifier(stmt), self.reduction_passes)
+        reducer = Reducer(self.parser, DuckDBVerifier(stmt), self.reduction_passes, self.canonicalizations)
         print(PrettyPrinter().transform(reducer.reduce(stmt)))
 
     def test_reduce_balanced(self):
@@ -946,7 +947,7 @@ class DuckDBReducerTest(unittest.TestCase):
                 "UNION SELECT t0.c0 FROM t0 JOIN t2 ON (((t0.c0)))" \
                 "UNION SELECT t0.c0 FROM t0 JOIN t2 ON (NULL);"
         print(self.parser.parse(stmts).pretty())
-        reducer = Reducer(self.parser, DuckDBVerifier(stmts), self.reduction_passes)
+        reducer = Reducer(self.parser, DuckDBVerifier(stmts), self.reduction_passes, self.canonicalizations)
         print(PrettyPrinter().transform(reducer.reduce(stmts)))
 
 
