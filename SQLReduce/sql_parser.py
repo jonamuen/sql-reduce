@@ -1,5 +1,4 @@
 from lark import *
-from transformation import StatementRemover, PrettyPrinter
 from named_tree import NamedTreeConstructor, NamedTree
 from utils import expand_grammar, split_into_stmts
 import logging
@@ -68,15 +67,3 @@ class SQLParser(Lark):
             assert len(t.children) == 1
         # convert to NamedTree and return
         return NamedTreeConstructor().transform(Tree("sql_stmt_list", [x.children[0] for x in trees]))
-
-
-if __name__ == '__main__':
-    parser = SQLParser("sql.lark", start="sql_stmt_list", debug=True, parser='lalr')
-
-    srm = StatementRemover(remove_indices=[1, 2])
-    p = PrettyPrinter(visit_tokens=True)
-    stmt = "CREATE TABLE t (id INT); SELECT ';' FROM t; jsdfe''';'; SELECT c0, ''';''' FROM (SELECT c0 FROM t0  WHEN c0 > 0) WHERE id=(((0)));"
-    tree = parser.parse(stmt)
-    print(tree.pretty())
-    print(p.transform(tree))
-    print(srm.transform(tree).pretty())

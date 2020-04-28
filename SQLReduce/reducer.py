@@ -1,5 +1,5 @@
-from verifier import AbstractVerifier, SQLiteReturnSetVerifier
-from transformation import AbstractTransformationsIterator, PrettyPrinter, StatementRemover
+from verifier import AbstractVerifier
+from transformation import AbstractTransformationsIterator, PrettyPrinter
 from typing import List
 from sql_parser import SQLParser
 import logging
@@ -45,8 +45,8 @@ class Reducer:
         \\forall t \\in self.transforms \\forall c \\in t.all_transforms not verify(stmt, c).
 
         After reaching a fixed point, the canonicalizations are applied.
-        :param stmt:
-        :return:
+        :param stmt: a string containing the statements to reduce
+        :return: a string representation of the best reduction achieved
         """
         logging.info("Parsing...")
         t0 = time()
