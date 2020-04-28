@@ -16,19 +16,27 @@ class AbstractTransformationsIterator:
     reduction opportunities are attempted for each invocation of all_transforms,
     while later reduction opportunities are never reached.
 
-    Generally, it is preferred to use the all_transforms iterator, since it
+    Note: progress is ignored if multi_remove is True.
+
+    Generally, it is preferable to use the all_transforms iterator, since it
     handles generation of reduction parameters and calls to set_up. If it is
     necessary to generate only a specific reduction, snippet works for all
-    classes that don't provide a custom all_transforms method:
+    classes that don't override the default all_transforms method:
         tr = MyTransformer()
         params = [x for x in gen_reduction_params(tree)]
         tr.set_up(sublist_of_params)
         tr.transform(tree)
-
-    Note: progress is ignored if multi_remove is True.
     """
 
     def __init__(self, remove_list=None, multi_remove=True):
+        """
+        Set up a reduction pass. remove_list is a list of parameters that tell
+        the transform() method where it should perform a reduction.
+
+        multi_remove is used by all_transforms. Check its documentation.
+        :param remove_list:
+        :param multi_remove:
+        """
         self.num_actions = 0
         self.index = 0
         if remove_list is None:
@@ -45,6 +53,7 @@ class AbstractTransformationsIterator:
         """
         self.set_up([])
         _ = self.transform(tree)
+        self.num_actions = self.index
         return range(self.index)
 
     def set_up(self, remove_list):
@@ -55,9 +64,33 @@ class AbstractTransformationsIterator:
         raise NotImplementedError
 
     def all_transforms(self, tree: Tree, progress: int = 0) -> Iterator[Tuple[int, Tree]]:
-        # TODO: turn multi_remove flag into more general strategy-hint, e.g. {single, aggressive, consecutive(k)}
+        """
+        Yield progress information and reduction candidates for a tree.
+
+        If self.multi_remove is set to true, all_transforms
+        will first set_up with all parameters provided by gen_reduction_params,
+        then split the list of parameters in half and proceed recursively on both
+        halves (just conceptually, the actual implementation is not recursive).
+        Once the length of the parameter list reaches 1, multi_remove is set to False.
+
+        Example:
+            multi_remove is True
+            [0,1,2,3] == list(gen_reduction_params(...))
+            The following parameters will be passed to set_up before the call to transform:
+                [0,1,2,3]
+                [0,1]
+                [2,3]
+            Now, multi_remove is set to False by all_transforms and the following
+            parameters will be passed:
+                [0]
+                [1]
+                ...
+
+        :param tree: Parse tree to reduce
+        :param progress: Resume reduction from here. Ignored if multi_remove == True.
+        :return: iterator of tuples of progress information and reduction candidates.
+        """
         if not self.multi_remove:
-            logging.info("Running without multiremove")
             skipped = []
             for i, item in enumerate(self.gen_reduction_params(tree)):
                 if i < progress:
@@ -65,26 +98,47 @@ class AbstractTransformationsIterator:
                     continue
                 self.set_up([item])
                 yield i, self.transform(tree)
+            self.num_actions = len(skipped)
             for i, item in enumerate(skipped):
                 self.set_up([item])
                 yield i, self.transform(tree)
         else:
-            logging.info("Running with multiremove")
             reduction_params = list(self.gen_reduction_params(tree))
             block_size = len(reduction_params)
-            self.num_actions = len(reduction_params)
-            while block_size >= 1:
+
+            # compute number of reduction attempts
+            self.num_actions = 0
+            while block_size > 1:
+                self.num_actions += len(reduction_params) // block_size
+                if len(reduction_params) % block_size != 0:
+                    self.num_actions += 1
+                block_size = block_size // 2
+
+            # actually perform reductions
+            counter = 0
+            block_size = len(reduction_params)
+            while block_size > 1:
                 num_blocks = len(reduction_params) // block_size
                 # check if there is an extra block at the end
                 if len(reduction_params) % block_size != 0:
                     num_blocks += 1
                 for i in range(num_blocks):
-                    logging.info(reduction_params)
+                    logging.debug(reduction_params)
                     self.set_up(reduction_params[i * block_size: (i + 1) * block_size])
-                    logging.info(f"Set up with: {self.remove_list}")
-                    yield 0, self.transform(tree)
+                    logging.debug(f"Set up with: {self.remove_list}")
+                    yield counter, self.transform(tree)
+                    counter += 1
                 block_size = block_size // 2
+            # disable multi-remove when blocksize == 1
+            self.multi_remove = False
+            for x in self.all_transforms(tree):
+                yield x
 
+    def __str__(self):
+        multi_remove = ''
+        if self.multi_remove:
+            multi_remove = '[multi remove]'
+        return type(self).__name__ + multi_remove
 
 class PrettyPrinter(Transformer):
     """
@@ -177,6 +231,7 @@ class StatementRemover(AbstractTransformationsIterator):
         return Tree('sql_stmt_list', new_children, tree.meta)
 
     def gen_reduction_params(self, tree):
+        self.num_actions = len(tree.children)
         for i in range(len(tree.children)):
             yield i
 
@@ -194,7 +249,6 @@ class StatementRemoverByType(AbstractTransformationsIterator):
         super().__init__(remove_list=remove_list, multi_remove=multi_remove)
 
     def transform(self, tree):
-        print(self.remove_list)
         if tree.data != 'sql_stmt_list':
             raise ValueError('StatementRemoverByType: root of tree must be sql_stmt_list')
         new_children = []
@@ -214,10 +268,10 @@ class StatementRemoverByType(AbstractTransformationsIterator):
             if len(c.children) == 0:
                 logging.debug(f'StatementRemoverByType: Unexpectedly encountered empty node: {c}')
                 continue
-            t = c.children[0].data
-            if t not in types:
-                yield t
-                types.add(t)
+            types.add(c.children[0].data)
+        self.num_actions = len(types)
+        for t in types:
+            yield t
 
 
 class ValueMinimizer(Transformer, AbstractTransformationsIterator):
@@ -804,6 +858,7 @@ class ListItemRemover(AbstractTransformationsIterator):
         _ = self.transform(tree)
         num_stmts = self.stmt_index + 1
         max_lengths = [x for x in self.list_expr_max_length]
+        assert num_stmts == len(max_lengths)
         for i in range(0, num_stmts):
             for j in range(0, max_lengths[i]):
                 yield i, j
@@ -887,6 +942,7 @@ class TokenRemover(Transformer, AbstractTransformationsIterator):
                 continue
             self.set_up(param)
             yield i, self.transform(tree)
+        self.num_actions = len(skipped)
         for i, param in enumerate(skipped):
             self.set_up(param)
             yield i, self.transform(tree)

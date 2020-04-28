@@ -1,14 +1,14 @@
 #! /usr/bin/env python3.8
 import argparse
+import logging
 
 from reducer import Reducer
-from transformation import StatementRemover, ColumnRemover, ExprSimplifier, PrettyPrinter, ListItemRemover, TokenRemover,\
+from transformation import StatementRemover, StatementRemoverByType, ColumnRemover, ExprSimplifier, ListItemRemover, TokenRemover,\
     TokenRemoverNonConsec, OptionalRemover, CompoundSimplifier, OptionalFinder, BalancedParenRemover, Canonicalizer, SROC, ValueMinimizer
 from verifier import Verifier
 from sql_parser import SQLParser
 from time import time
 from utils import get_grammar
-import logging
 
 
 def main():
@@ -19,15 +19,16 @@ def main():
     parser.add_argument('sql', type=str, help='Path to an SQL file')
 
     args = parser.parse_args()
-
+    fmt = '%(levelname)s: %(asctime)s: %(message)s'
+    datefmt = '%Y-%m-%d %H:%M:%S'
     if args.verbose:
-        logging.basicConfig(level=logging.INFO)
+        logging.basicConfig(level=logging.INFO, format=fmt, datefmt=datefmt)
     else:
-        logging.basicConfig(level=logging.WARNING)
+        logging.basicConfig(level=logging.WARNING, format=fmt, datefmt=datefmt)
 
     sql_grammar = get_grammar('sql.lark', 'lark.lark')
     optionals = OptionalFinder().transform(sql_grammar)
-    reduction_passes = [StatementRemover(), OptionalRemover(optionals=optionals), CompoundSimplifier(), ColumnRemover(),
+    reduction_passes = [StatementRemoverByType(), StatementRemover(), OptionalRemover(optionals=optionals), CompoundSimplifier(), ColumnRemover(),
                         ExprSimplifier(), ListItemRemover(), BalancedParenRemover(), TokenRemover(), TokenRemoverNonConsec()]
 
     reducer = Reducer(SQLParser('sql.lark', start="sql_stmt_list", debug=False, parser='lalr'),

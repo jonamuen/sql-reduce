@@ -37,6 +37,7 @@ class Reducer:
         self.itr_counter = 0
         self.cache = set()
         self.stmts_original = None
+        self.stats = {'verification': 0., 'generation': 0., 'to_str': 0.}
 
     def reduce(self, stmt: str):
         """
@@ -83,10 +84,14 @@ class Reducer:
                         global_fixed_point = False
             # run canonicalizations after all reductions
             for t in self.canonicalizations:
-                best, _ = self._itr_until_fixedpoint(t, best, check_length=False)
+                best, best_lenght = self._itr_until_fixedpoint(t, best, check_length=False)
+                self.best_length = best_lenght
         except KeyboardInterrupt:
             pass
         logging.info(f"Iterations: {self.itr_counter}, Shortest result (bytes): {self.best_length}")
+        logging.info(f"Overall stats: Generating reductions: {self.stats['generation']:.2f}s, "
+                     f"Conversion to str: {self.stats['to_str']:.2f}s, "
+                     f"Verifying reduction candidates: {self.stats['verification']:.2f}s")
         return self.pprinter.transform(best)
 
     def _itr_until_fixedpoint(self, t, tree, check_length=True):
@@ -107,8 +112,9 @@ class Reducer:
             t0 = time()
             for i, candidate in itr:
                 t1 = time()
-                logging.info(f"Iterations: {self.itr_counter}, Tr: {t}, Shortest result: {best_length}")
-                logging.info(f"Generation: {t1 - t0}s")
+                logging.info(f"Iterations: {self.itr_counter}, Tr: {t} ({i}/{t.num_actions}), Shortest result: {best_length}")
+                logging.debug(f"Generation: {t1 - t0:.4f}s")
+                self.stats['generation'] += t1 - t0
 
                 t0 = time()
                 self.itr_counter += 1
@@ -116,10 +122,11 @@ class Reducer:
                 stmt_cand = ''.join(stmts_cand)
                 stmt_hash = hash(stmt_cand)
                 t1 = time()
-                logging.info(f"Preparation: {t1 - t0}s")
+                logging.debug(f"Tree to str: {t1 - t0:.4f}s")
+                self.stats['to_str'] += t1 - t0
 
                 if stmt_hash in self.cache:
-                    logging.info(f"Cache hit")
+                    logging.debug(f"Cache hit")
                     t0 = time()
                     continue
 
@@ -127,7 +134,8 @@ class Reducer:
                     t0 = time()
                     res = self.verifier.verify(self.stmts_original, stmts_cand)
                     t1 = time()
-                    logging.info(f"Verification: {t1 - t0}s")
+                    logging.debug(f"Verification: {t1 - t0:.4f}s")
+                    self.stats['verification'] += t1 - t0
                     if res:
                         self.cache.add(stmt_hash)
                         local_fixed_point = False

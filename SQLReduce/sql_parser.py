@@ -45,7 +45,7 @@ class SQLParser(Lark):
                 trees.append(super().parse(s))
             except LarkError as e:
                 num_parse_errors += 1
-                logging.info(e)
+                logging.debug(e)
                 try:
                     t = self.unrecognized_stmt_parser.parse(s.rstrip(';'))
                     trees.append(Tree('sql_stmt_list',
