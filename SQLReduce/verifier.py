@@ -1,11 +1,15 @@
-import sqlite3
 import duckdb
+import logging
+import sqlite3
+import tempfile
+
 from typing import List, Union
 from os import remove, system
 from pathlib import Path
 from multiprocessing import Process, Queue
+from shutil import copy
+
 from utils import split_into_stmts
-import logging
 
 
 class AbstractVerifier:
@@ -13,11 +17,11 @@ class AbstractVerifier:
     Abstract base class for a verifier.
     AbstractVerifier should be subclassed and verify overridden.
     """
-    def verify(self, a: List[str], b: List[str]):
+    def verify(self, original: List[str], reduced: List[str]):
         """
         Override this method to implement a comparison function
-        :param a: A list of SQL statements
-        :param b: A list of SQL statements
+        :param original: A list of SQL statements
+        :param reduced: A list of SQL statements
         :return: bool: True if a is equivalent to b
         """
         raise NotImplementedError
@@ -32,12 +36,12 @@ class SQLiteReturnSetVerifier(AbstractVerifier):
     def __init__(self, db_path: str):
         self.db_path = db_path
 
-    def verify(self, a: List[str], b: List[str]):
+    def verify(self, original: List[str], reduced: List[str]):
         """
         Implement verify from AbstractVerifier
         """
-        results_a = self._get_results(a)
-        results_b = self._get_results(b)
+        results_a = self._get_results(original)
+        results_b = self._get_results(reduced)
         return results_a == results_b
 
     def _get_results(self, stmts: List[str]):
@@ -70,6 +74,11 @@ class DuckDBVerifier(AbstractVerifier):
         will be performed. If the error you are reducing does not crash DuckDB,
         you can set the no_subprocess flag to True to execute queries in the same
         process as the verifier, which significantly improves performance.
+
+        Note that the reducer may generate queries that crash DuckDB
+        (e.g CREATE TABLE t0 (); for DuckDB version 0.1.6). If this happens, also
+        set no_subprocess to False.
+
         :param original_stmt: the statement(s) that trigger the error
         :param no_subprocess: can be set to true if the error does not crash DuckDB
         """
@@ -88,24 +97,24 @@ class DuckDBVerifier(AbstractVerifier):
         if self.exitcode == 0:
             self.errors = q.get()
 
-    def verify(self, a: List[str], b: List[str]):
+    def verify(self, original: List[str], reduced: List[str]):
         """
         Check if the statements b trigger the same error as the statements with
         which this instance was initialized.
-        :param a: Ignored. (legacy unmodified statement)
-        :param b: The statement(s) to check
+        :param original: Ignored. Set original during initialization.
+        :param reduced: The statement(s) to check
         :return: True if the same error is triggered, false otherwise
         """
         q = Queue()
         if self.no_subprocess:
-            self._process_target(b, q)
+            self._process_target(reduced, q)
         else:
-            p = Process(target=self._process_target, args=(b, q))
+            p = Process(target=self._process_target, args=(reduced, q))
             p.start()
             p.join()
             if p.exitcode != 0:
                 if self.exitcode == 0:
-                    logging.warning(f"Unexpected exit code {p.exitcode}! Is this a different bug?: {''.join(b)}")
+                    logging.warning(f"Unexpected exit code {p.exitcode}! Is this a different bug?: {''.join(reduced)}")
                 return p.exitcode == self.exitcode
         return q.get() == self.errors
 
@@ -143,20 +152,18 @@ class ExternalVerifier(AbstractVerifier):
         """
         self.exec_path = exec_path
 
-    def verify(self, a: List[str], b: List[str]):
+    def verify(self, original: List[str], reduced: List[str]):
         """
         Implement verify from AbstractVerifier
         """
-        # TODO: place these files in a better location / ensure no existing file is overwritten
-        arg1 = "tmp1.sql"
-        arg2 = "tmp2.sql"
-        with open(arg1, 'w') as f:
-            f.writelines(a)
-        with open(arg2, 'w') as f:
-            f.writelines(b)
-        return_code = system(f"{self.exec_path} {arg1} {arg2}")
-        remove(arg1)
-        remove(arg2)
+        with tempfile.TemporaryDirectory as d:
+            logging.debug(f'Using tempdir {d}')
+            d = Path(d)
+            with open(d / 'tmp1.sql', 'w') as f:
+                f.writelines(original)
+            with open(d / 'tmp2.sql', 'w') as f:
+                f.writelines(reduced)
+            return_code = system(f"{self.exec_path} {'tmp1.sql'} {'tmp2.sql'}")
         return return_code == 0
 
 
@@ -165,20 +172,31 @@ class Verifier(AbstractVerifier):
     Implementation for an external verifier that works like c-reduce.
     """
     def __init__(self, exec_path: Union[str, Path], output_name: str):
+        """
+        Set up a verifier.
+        :param exec_path: path to verifier
+        :param output_name: filename that is expected by the verifier
+        """
         self.exec_path = Path(exec_path)
         self.working_dir = self.exec_path.parent
         self.output_name = output_name
 
-    # TODO: unify interfaces (a = original currently not needed here)
-    def verify(self, a: List[str], b: List[str]):
+    def verify(self, original: List[str], reduced: List[str]):
         """
-        Writes the reduced statement to the same directory as the executable, then
-        executes the executable in that directory. If return code is 0, return True.
+        Writes the reduced statement to a temporary directory and copies the
+        verifier into that directory. Then it changes working directory to the
+        temporary direco
+        If return code is 0, return True.
         Otherwise return False.
-        :param a: sql statement(s) provided as list of strings
-        :param b: sql statement(s) provided as list of strings
+        :param original: ignored, since external verifier should know if b triggers the same error as a
+        :param reduced: sql statement(s) provided as list of strings
         :return: Bool
         """
-        with open(self.working_dir / self.output_name, 'w') as f:
-            f.writelines(b)
-        return 0 == system(f"cd {self.working_dir}; {self.exec_path.absolute()}")
+        with tempfile.TemporaryDirectory() as d:
+            logging.debug(f'Using tempdir {d}')
+            d = Path(d)
+            with open(d / self.output_name, 'w') as f:
+                f.writelines(reduced)
+            copy(self.exec_path.absolute(), d / self.exec_path.name)
+            return_code = system(f"cd {d}; {d / self.exec_path.name}")
+        return return_code == 0
