@@ -4,7 +4,7 @@ from typing import List, Union
 from os import remove, system
 from pathlib import Path
 from multiprocessing import Process, Queue
-from sql_parser import split_into_stmts
+from utils import split_into_stmts
 import logging
 
 

@@ -1,33 +1,8 @@
 from lark import *
 from transformation import StatementRemover, PrettyPrinter
 from named_tree import NamedTreeConstructor, NamedTree
-from utils import expand_grammar
+from utils import expand_grammar, split_into_stmts
 import logging
-
-
-def split_into_stmts(text: str):
-    """
-    Split a string of multiple sql statements into a list of single statements.
-    :param text:
-    """
-    buf = ''
-    in_str = False
-    for c in text:
-        buf += c
-        if not in_str:
-            if c == "'":
-                in_str = True
-            elif c == ';':
-                yield buf
-                buf = ''
-        else:
-            if c == "'":
-                in_str = False
-    buf = buf.strip(' \n\t')
-    if len(buf) > 0:
-        if buf[-1] != ';':
-            buf += ';'
-        yield buf
 
 
 class SQLParser(Lark):

@@ -23,7 +23,6 @@ def expand_grammar(filename: str):
 
 
 def partial_equivalence(full: Union[Tree, Token], partial: Optional[Union[Tree, Token]]):
-    # TODO: define equivalence formally and prove correctness of this function
     """
     Compute if a tree is equivalent to a partial tree. A partial tree is a tree
     where some subtrees have been replaced by None. Essentially, the trees are
@@ -70,3 +69,29 @@ def get_grammar(sql_grammar_file: str, lark_grammar_file: str):
         parser = Lark(f)
         with open(expand_grammar(sql_grammar_file)) as grammar_file:
             return parser.parse(grammar_file.read())
+
+
+def split_into_stmts(text: str):
+    """
+    Split a string of multiple sql statements into a list of single statements.
+    :param text: string of sql statements
+    :return: Iterator of strings of single sql statements
+    """
+    buf = ''
+    in_str = False
+    for c in text:
+        buf += c
+        if not in_str:
+            if c == "'":
+                in_str = True
+            elif c == ';':
+                yield buf
+                buf = ''
+        else:
+            if c == "'":
+                in_str = False
+    buf = buf.strip(' \n\t')
+    if len(buf) > 0:
+        if buf[-1] != ';':
+            buf += ';'
+        yield buf
