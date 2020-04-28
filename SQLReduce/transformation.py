@@ -462,7 +462,7 @@ class ExprSimplifier(Transformer, AbstractTransformationsIterator):
         return Transformer.transform(self, tree)
 
 
-class SimpleColumnRemover(AbstractTransformationsIterator):
+class ColumnRemover(AbstractTransformationsIterator):
     """
     A simple reduction pass that tries to remove single columns from insert,
     update and create table statements. It doesn't handle aliases and doesn't
@@ -471,6 +471,7 @@ class SimpleColumnRemover(AbstractTransformationsIterator):
     across all column references.
 
     Also removes table constraints.
+
     Example:
         INSERT INTO t0 VALUES (2, 1);
         INSERT INTO t1 (c0) VALUES (3);

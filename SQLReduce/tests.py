@@ -3,7 +3,7 @@ from itertools import combinations
 from lark import Tree, Token, Lark
 from lark import ParseError
 from utils import partial_equivalence, get_grammar
-from transformation import StatementRemover, PrettyPrinter, SimpleColumnRemover, ValueMinimizer, ExprSimplifier, \
+from transformation import StatementRemover, PrettyPrinter, ColumnRemover, ValueMinimizer, ExprSimplifier, \
     TokenRemover, TokenRemoverNonConsec, CompoundSimplifier, OptionalRemover, OptionalFinder, BalancedParenRemover, \
     Canonicalizer, SROC, StatementRemoverByType
 from pathlib import Path
@@ -517,10 +517,10 @@ class OptionalRemoverTest(unittest.TestCase):
         self.assertEqual(7, len(list(orm.all_transforms(tree))))
 
 
-class SimpleColumnRemoverTest(unittest.TestCase):
+class ColumnRemoverTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.scrm = SimpleColumnRemover()
+        cls.scrm = ColumnRemover()
         cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
         cls.pprinter = PrettyPrinter()
 
@@ -884,7 +884,7 @@ class ReducerTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
         verifier = SQLiteReturnSetVerifier("test/test_reduce.sqlite")
-        cls.reducer = Reducer(parser, verifier, [StatementRemover(), SimpleColumnRemover(), ExprSimplifier()], [])
+        cls.reducer = Reducer(parser, verifier, [StatementRemover(), ColumnRemover(), ExprSimplifier()], [])
         cls.pprinter = PrettyPrinter()
 
     def test_unneeded_inserts_and_tables(self):
@@ -933,7 +933,7 @@ class DuckDBReducerTest(unittest.TestCase):
         optionals = OptionalFinder().transform(get_grammar('sql.lark', 'lark.lark'))
         cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=False, parser='lalr')
         cls.reduction_passes = [StatementRemover(), OptionalRemover(optionals=optionals), CompoundSimplifier(),
-                                SimpleColumnRemover(), ExprSimplifier(), BalancedParenRemover(),
+                                ColumnRemover(), ExprSimplifier(), BalancedParenRemover(),
                                 TokenRemover(), TokenRemoverNonConsec()]
         cls.canonicalizations = [ValueMinimizer(), Canonicalizer(), SROC()]
 
