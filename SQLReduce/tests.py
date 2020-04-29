@@ -5,7 +5,7 @@ from lark import ParseError
 from utils import partial_equivalence, get_grammar
 from transformation import StatementRemover, PrettyPrinter, ColumnRemover, ValueMinimizer, ExprSimplifier, \
     TokenRemover, TokenRemoverNonConsec, CompoundSimplifier, OptionalRemover, OptionalFinder, BalancedParenRemover, \
-    Canonicalizer, SROC, StatementRemoverByType, CaseSimplifier
+    Canonicalizer, SROC, StatementRemoverByType, CaseSimplifier, ConstraintRemover
 from pathlib import Path
 from sql_parser import SQLParser
 from reducer import Reducer
@@ -714,6 +714,22 @@ class CaseSimplifierTest(unittest.TestCase):
         expected_partial = {'SELECT (CASE WHEN c0 < 0 THEN 0 ELSE NULL END) FROM t0;',
                             'SELECT (CASE WHEN c0 > 0 THEN c0 ELSE NULL END) FROM t0;',
                             'SELECT (CASE WHEN c0 > 0 THEN c0 WHEN c0 < 0 THEN 0 END) FROM t0;'}
+        for x in expected_partial:
+            self.assertIn(x, results)
+
+
+class ConstraintRemoverTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
+        cls.constraint_remover = ConstraintRemover()
+
+    def test_all(self):
+        stmt = 'CREATE TABLE t0 (c0 INT UNIQUE, c1 VARCHAR(128) PRIMARY KEY);'
+        tree = self.parser.parse(stmt)
+        results = set(map(lambda x: PrettyPrinter().transform(x[1]), self.constraint_remover.all_transforms(tree)))
+        expected_partial = {'CREATE TABLE t0 (c0 INT UNIQUE, c1 VARCHAR (128));',
+                            'CREATE TABLE t0 (c0 INT, c1 VARCHAR (128) PRIMARY KEY);'}
         for x in expected_partial:
             self.assertIn(x, results)
 

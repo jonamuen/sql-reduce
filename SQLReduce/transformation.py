@@ -526,6 +526,14 @@ class ExprSimplifier(Transformer, AbstractTransformationsIterator):
 
 
 class CaseSimplifier(Transformer, AbstractTransformationsIterator):
+    """
+    Simplify case expressions by removing cases.
+    Example:
+        given remove_list = [1]
+            SELECT (CASE WHEN c0 > 0 THEN c0 ELSE NULL END) FROM t0;
+        would be reduced to
+            SELECT (CASE WHEN c0 > 0 THEN c0 END) FROM t0;
+    """
     def __init__(self, remove_list=None, multi_remove=True):
         Transformer.__init__(self)
         AbstractTransformationsIterator.__init__(self, remove_list=remove_list, multi_remove=multi_remove)
@@ -656,6 +664,22 @@ class ColumnRemover(AbstractTransformationsIterator):
             del assignment_list.children[3*i:3*(i+1)]
         self.index += num_columns
         return tree
+
+
+class ConstraintRemover(Transformer, AbstractTransformationsIterator):
+    """
+    Remove column constraints in CREATE TABLE statements.
+    (Table constraints are removed by ColumnRemover).
+    """
+    def __init__(self, remove_list=None, multi_remove=True):
+        Transformer.__init__(self)
+        AbstractTransformationsIterator.__init__(self, remove_list=remove_list, multi_remove=multi_remove)
+
+    def column_constraint(self, children):
+        self.index += 1
+        if self.index - 1 in self.remove_list:
+            raise Discard
+        return NamedTree('column_constraint', children)
 
 
 class Canonicalizer(Transformer, AbstractTransformationsIterator):
