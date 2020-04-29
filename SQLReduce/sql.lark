@@ -13,10 +13,9 @@ select_stmt_full: with_clause? select_stmt_helper
 
 // resolve shift/reduce conflicts by forcing left associativity
 select_stmt_helper: select_stmt_helper compound_operator select_stmt | select_stmt
-select_stmt.1: k_select k_distinct? subquery_or_expr_list from_clause? \
+select_stmt.1: k_select k_all? k_distinct? subquery_or_expr_list from_clause? \
                 where_clause? (group_by_clause having_clause?)? order_by_clause? limit_clause? offset_clause?
 
-// TODO: implement constraints properly
 create_table_stmt.1: k_create k_table (k_if k_not k_exists)? table_name\
                         LPAREN column_def_list RPAREN
 
@@ -40,7 +39,7 @@ assign_list: column_name EQUAL VALUE ("," column_name EQUAL VALUE)*
 
 subquery_or_expr_list: subquery_or_expr_as ("," subquery_or_expr_as)*
 
-subquery_or_expr_as: k_all? expr (k_as NAME)?
+subquery_or_expr_as: expr (k_as NAME)?
 
 with_clause: k_with k_recursive? column_name k_as LPAREN select_stmt_helper RPAREN
 
@@ -73,13 +72,11 @@ expr_helper: LPAREN expr RPAREN
            | LPAREN select_stmt_helper RPAREN
            | column_name
            | (sql_type)? VALUE
-           | k_notnull
            | k_cast LPAREN expr k_as sql_type RPAREN
            | k_nullif LPAREN expr COMMA expr RPAREN
            | k_coalesce LPAREN subquery_or_expr_list RPAREN
            | k_exists LPAREN select_stmt_helper RPAREN
            | k_case expr? case_list k_end
-           | k_any LPAREN expr RPAREN
            | agg_func LPAREN expr RPAREN
            | k_concat LPAREN subquery_or_expr_list RPAREN
 
@@ -113,9 +110,12 @@ fk_action: k_on (k_delete | k_update) (k_set VALUE | k_set k_default | k_cascade
 fk_defer: k_not? k_deferrable (k_initially (k_deferred | k_immediate))?
 
 name_list: NAME ("," NAME)*
-// TODO: add BETWEEN operator
-operator: PLUS | MINUS | STAR | SLASH | EQUAL | NEQ | GREATER | LESS | k_is
-        | k_or | k_and | LEQ | GEQ | k_in
+
+// Note: between is implemented as a normal operator, thus it is much more expressive than actual sql.
+operator: (PLUS | MINUS | STAR | SLASH | EQUAL | NEQ | GREATER | LESS | k_is
+        | k_or | k_and | LEQ | GEQ | k_in | k_between) quantifier?
+
+quantifier: k_all | k_any
 
 compound_operator: (k_union k_all?) | k_intersect | k_except
 
@@ -204,6 +204,7 @@ compound_operator: (k_union k_all?) | k_intersect | k_except
 !k_constraint: "CONSTRAINT" | "constraint"
 !k_collate: "COLLATE" | "collate"
 !k_notnull: "NOT NULL" | "not null"
+!k_between: "BETWEEN" | "between"
 
 PLUS: "+"
 MINUS: "-"

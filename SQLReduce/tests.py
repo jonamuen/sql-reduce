@@ -5,7 +5,7 @@ from lark import ParseError
 from utils import partial_equivalence, get_grammar
 from transformation import StatementRemover, PrettyPrinter, ColumnRemover, ValueMinimizer, ExprSimplifier, \
     TokenRemover, TokenRemoverNonConsec, CompoundSimplifier, OptionalRemover, OptionalFinder, BalancedParenRemover, \
-    Canonicalizer, SROC, StatementRemoverByType
+    Canonicalizer, SROC, StatementRemoverByType, CaseSimplifier
 from pathlib import Path
 from sql_parser import SQLParser
 from reducer import Reducer
@@ -170,6 +170,23 @@ class ParserTest(unittest.TestCase):
     def test_or(self):
         tree = self.parser.parse("SELECT c0 FROM t0 WHERE NOT c0 = NULL or c1 = 0;")
         self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
+
+    def test_between(self):
+        tree = self.parser.parse("SELECT c0 FROM t0 WHERE c0 BETWEEN 0 AND 3;")
+        self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
+        self.assertEqual(1, len(list(tree.find_data("k_between"))))
+
+    def test_agg_func(self):
+        tree = self.parser.parse("SELECT SUM(c0) FROM t0;")
+        self.assertEqual(0, len(list(tree.find_data('unexpected_stmt'))))
+        self.assertEqual(1, len(list(tree.find_data('agg_func'))))
+
+    def test_any_all(self):
+        tree = self.parser.parse("SELECT c0 FROM t0 WHERE c0 > ANY(SELECT c1 FROM t1);"
+                                 "SELECT c0 FROM t0 WHERE c0 > ALL(SELECT c1 FROM t1);")
+        self.assertEqual(0, len(list(tree.find_data('unexpected_stmt'))))
+        self.assertEqual(1, len(list(tree.find_data('k_any'))))
+        self.assertEqual(1, len(list(tree.find_data('k_all'))))
 
     def test_subquery(self):
         stmt = "SELECT * FROM (SELECT id FROM t0 JOIN t1);"
@@ -682,6 +699,23 @@ class ExprSimplifierTest(unittest.TestCase):
         for _, x in self.simplifier.all_transforms(tree):
             print(PrettyPrinter().transform(x))
         print(self.simplifier.index)
+
+
+class CaseSimplifierTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=True, parser='lalr')
+        cls.simplifier = CaseSimplifier()
+
+    def test_all(self):
+        stmt = 'SELECT (CASE WHEN c0 > 0 THEN c0 WHEN c0 < 0 THEN 0 ELSE NULL END) FROM t0;'
+        tree = self.parser.parse(stmt)
+        results = set(map(lambda x: PrettyPrinter().transform(x[1]), self.simplifier.all_transforms(tree)))
+        expected_partial = {'SELECT (CASE WHEN c0 < 0 THEN 0 ELSE NULL END) FROM t0;',
+                            'SELECT (CASE WHEN c0 > 0 THEN c0 ELSE NULL END) FROM t0;',
+                            'SELECT (CASE WHEN c0 > 0 THEN c0 WHEN c0 < 0 THEN 0 END) FROM t0;'}
+        for x in expected_partial:
+            self.assertIn(x, results)
 
 
 class BalancedParenRemoverTest(unittest.TestCase):

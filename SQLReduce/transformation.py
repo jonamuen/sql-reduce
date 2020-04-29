@@ -463,14 +463,18 @@ class BalancedParenRemover(Transformer, AbstractTransformationsIterator):
             del children[i]
         return NamedTree(data, children, meta)
 
-
+# TODO: remove references to Tree
 class ExprSimplifier(Transformer, AbstractTransformationsIterator):
     def __init__(self, remove_list=None, multi_remove=True):
         Transformer.__init__(self)
         AbstractTransformationsIterator.__init__(self, remove_list=remove_list, multi_remove=multi_remove)
 
     def expr(self, children):
+        # TODO: perform bounds check
         new_children = [c for c in children]
+        if len(children) == 0:
+            logging.debug('Unexpected empty children in expr')
+            return NamedTree('expr', new_children)
         local_remove_list = []
         offset = 0
         if children[0].data == "k_not":
@@ -486,12 +490,18 @@ class ExprSimplifier(Transformer, AbstractTransformationsIterator):
                 local_remove_list += [offset, offset+1]
             self.index += 2
         for i in local_remove_list[::-1]:
-            del new_children[i]
+            try:
+                del new_children[i]
+            except IndexError:
+                logging.debug(f'malformed expr with children: {new_children} '
+                              f'and local_remove_list: {local_remove_list}')
         return Tree("expr", new_children)
 
     def expr_helper(self, children):
         local_remove_list = []
         new_children = [c for c in children]
+        # TODO: add more functions
+        # TODO: perform bounds check
         if issubclass(type(children[0]), Tree):
             if children[0].data == "k_cast":
                 if self.index in self.remove_list:
@@ -503,7 +513,12 @@ class ExprSimplifier(Transformer, AbstractTransformationsIterator):
                 elif self.index + 1 in self.remove_list:
                     local_remove_list += [0, 2, 3]
                 self.index += 2
+            elif children[0].data in ('agg_fun', 'k_exists'):
+                if self.index in self.remove_list:
+                    local_remove_list += [0]
+                self.index += 1
         else:
+            # TODO: check if else clause can be removed
             if len(children) == 3 and children[0].type == 'LPAREN' and children[2].type == 'RPAREN':
                 if self.index in self.remove_list:
                     local_remove_list += [0, 2]
@@ -514,6 +529,31 @@ class ExprSimplifier(Transformer, AbstractTransformationsIterator):
 
     def transform(self, tree):
         return Transformer.transform(self, tree)
+
+
+class CaseSimplifier(Transformer, AbstractTransformationsIterator):
+    def __init__(self, remove_list=None, multi_remove=True):
+        Transformer.__init__(self)
+        AbstractTransformationsIterator.__init__(self, remove_list=remove_list, multi_remove=multi_remove)
+
+    def case_list(self, children):
+        if len(children) % 2 != 0:
+            logging.warning('case_list has invalid number of children, skipping')
+            return NamedTree('case_list', children)
+        local_remove_list = []
+        for i in range(len(children) // 4):
+            if self.index + i in self.remove_list:
+                local_remove_list += [4 * i + j for j in range(4)]
+        self.index += len(children) // 4
+        if len(children) % 4 == 2:
+            if self.index in self.remove_list:
+                local_remove_list += [len(children) - 2, len(children) - 1]
+            self.index += 1
+        if len(local_remove_list) > 0:
+            children = [x for x in children]
+        for i in local_remove_list[::-1]:
+            del children[i]
+        return NamedTree('case_list', children)
 
 
 class ColumnRemover(AbstractTransformationsIterator):
