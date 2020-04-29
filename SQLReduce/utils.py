@@ -135,6 +135,9 @@ class PrettyPrinter(Transformer):
     def list_expr(self, children):
         return '(' + self._list(children) + ')'
 
+    def name_list(self, children):
+        return self._list(children)
+
     def _list(self, children, sep=', '):
         """
         Return string representation of common list like patterns (e.g. list of

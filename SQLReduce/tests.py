@@ -220,7 +220,6 @@ class ParserTest(unittest.TestCase):
                "  c4 CHECK (3 + 4)," \
                "  CONSTRAINT \"fk_0\" FOREIGN KEY (id) REFERENCES t1 ON UPDATE CASCADE ON DELETE RESTRICT);"
         tree = self.parser.parse(stmt)
-        print(tree)
         self.assertEqual(0, len(list(tree.find_data('unexpected_stmt'))))
         self.assertEqual(5, len(list(tree.find_data('column_constraint'))))
 
@@ -455,6 +454,11 @@ class PrettyPrinterTest(unittest.TestCase):
 
     def test_fully_qualified_column_name(self):
         stmt = "SELECT main.t0.c0 FROM main.t0;"
+        tree = self.parser.parse(stmt)
+        self.assertEqual(stmt, self.printer.transform(tree))
+
+    def test_primary_key(self):
+        stmt = "CREATE TABLE t0 (c0 INT, c1 INT, PRIMARY KEY (c0, c1));"
         tree = self.parser.parse(stmt)
         self.assertEqual(stmt, self.printer.transform(tree))
 
