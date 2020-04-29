@@ -156,7 +156,7 @@ class ExternalVerifier(AbstractVerifier):
         """
         Implement verify from AbstractVerifier
         """
-        with tempfile.TemporaryDirectory as d:
+        with tempfile.TemporaryDirectory() as d:
             logging.debug(f'Using tempdir {d}')
             d = Path(d)
             with open(d / 'tmp1.sql', 'w') as f:

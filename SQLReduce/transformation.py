@@ -71,7 +71,6 @@ class AbstractTransformationsIterator:
         will first set_up with all parameters provided by gen_reduction_params,
         then split the list of parameters in half and proceed recursively on both
         halves (just conceptually, the actual implementation is not recursive).
-        Once the length of the parameter list reaches 1, multi_remove is set to False.
 
         Example:
             multi_remove is True
@@ -80,8 +79,6 @@ class AbstractTransformationsIterator:
                 [0,1,2,3]
                 [0,1]
                 [2,3]
-            Now, multi_remove is set to False by all_transforms and the following
-            parameters will be passed:
                 [0]
                 [1]
                 ...
@@ -108,7 +105,7 @@ class AbstractTransformationsIterator:
 
             # compute number of reduction attempts
             self.num_actions = 0
-            while block_size > 1:
+            while block_size >= 1:
                 self.num_actions += len(reduction_params) // block_size
                 if len(reduction_params) % block_size != 0:
                     self.num_actions += 1
@@ -117,7 +114,7 @@ class AbstractTransformationsIterator:
             # actually perform reductions
             counter = 0
             block_size = len(reduction_params)
-            while block_size > 1:
+            while block_size >= 1:
                 num_blocks = len(reduction_params) // block_size
                 # check if there is an extra block at the end
                 if len(reduction_params) % block_size != 0:
@@ -129,16 +126,13 @@ class AbstractTransformationsIterator:
                     yield counter, self.transform(tree)
                     counter += 1
                 block_size = block_size // 2
-            # disable multi-remove when blocksize == 1
-            self.multi_remove = False
-            for x in self.all_transforms(tree):
-                yield x
 
     def __str__(self):
         multi_remove = ''
         if self.multi_remove:
             multi_remove = '[multi remove]'
         return type(self).__name__ + multi_remove
+
 
 class PrettyPrinter(Transformer):
     """
