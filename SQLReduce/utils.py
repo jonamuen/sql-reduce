@@ -62,7 +62,7 @@ def get_grammar(sql_grammar_file: str, lark_grammar_file: str):
     """
     Parse sql grammar using a parser for .lark files. Access to the SQL grammar
     can be used for instance to automatically find some optionals (see OptionalFinder
-    and OptionalReducer in transformation.py).
+    and OptionalReducer in reductions.py).
     :param sql_grammar_file: path to the grammar for sql
     :param lark_grammar_file: path to the grammar for .lark files
     :return: a parse tree obtained by parsing sql_grammar_file using the lark_grammar_file

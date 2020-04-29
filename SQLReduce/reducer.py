@@ -1,5 +1,5 @@
 from verifier import AbstractVerifier
-from transformation import AbstractTransformationsIterator
+from reductions import AbstractTransformationsIterator
 from utils import PrettyPrinter
 from typing import List
 from sql_parser import SQLParser

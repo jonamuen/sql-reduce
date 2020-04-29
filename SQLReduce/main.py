@@ -3,7 +3,7 @@ import argparse
 import logging
 
 from reducer import Reducer
-from transformation import StatementRemover, StatementRemoverByType, ColumnRemover, ExprSimplifier, ListItemRemover, TokenRemover,\
+from reductions import StatementRemover, StatementRemoverByType, ColumnRemover, ExprSimplifier, ListItemRemover, TokenRemover,\
     TokenRemoverNonConsec, OptionalRemover, CompoundSimplifier, OptionalFinder, BalancedParenRemover
 from canonicalizations import ValueMinimizer, SROC, Canonicalizer
 from verifier import Verifier
