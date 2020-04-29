@@ -4,7 +4,8 @@ import logging
 
 from reducer import Reducer
 from transformation import StatementRemover, StatementRemoverByType, ColumnRemover, ExprSimplifier, ListItemRemover, TokenRemover,\
-    TokenRemoverNonConsec, OptionalRemover, CompoundSimplifier, OptionalFinder, BalancedParenRemover, Canonicalizer, SROC, ValueMinimizer
+    TokenRemoverNonConsec, OptionalRemover, CompoundSimplifier, OptionalFinder, BalancedParenRemover
+from canonicalizations import ValueMinimizer, SROC, Canonicalizer
 from verifier import Verifier
 from sql_parser import SQLParser
 from time import time

@@ -1,6 +1,8 @@
 from lark import Tree, Token, Lark
 from typing import Union, Optional
 
+from lark.visitors import Transformer, v_args
+
 
 def expand_grammar(filename: str):
     """
@@ -95,3 +97,65 @@ def split_into_stmts(text: str):
         if buf[-1] != ';':
             buf += ';'
         yield buf
+
+
+class PrettyPrinter(Transformer):
+    """
+    Computes the string representation of an SQL parse-tree
+    """
+    def __default_token__(self, token):
+        return token.value
+
+    @v_args(tree=True)
+    def sql_stmt(self, tree):
+        s = ""
+        for c in tree.children:
+            s += (c + ' ')
+        s = s.rstrip()
+        return s.lstrip() + ';\n'
+
+    def sql_stmt_list(self, children):
+        return self._list(children, '').rstrip('\n')
+
+    def column_list(self, children):
+        return self._list(children)
+
+    def values_list(self, children):
+        return self._list(children)
+
+    def value_tuple(self, children):
+        return '(' + self._list(children) + ')'
+
+    def subquery_or_expr_list(self, children):
+        return self._list(children)
+
+    def column_def_list(self, children):
+        return self._list(children)
+
+    def list_expr(self, children):
+        return '(' + self._list(children) + ')'
+
+    def _list(self, children, sep=', '):
+        """
+        Return string representation of common list like patterns (e.g. list of
+        columns in an INSERT statement).
+        :param children: list of list items
+        :param sep: character(s) to insert between list items
+        :return: str
+        """
+        s = ""
+        for c in children:
+            s += (c + sep)
+        return s.rstrip(sep)
+
+    def __default__(self, data, children, meta):
+        s = ""
+        for c in children:
+            # no space before ";", ")", "," and "."
+            if c in (";", ")", ",", "."):
+                s = s.rstrip()
+            s += (c + " ")
+            # no space after "(", "::" and "."
+            if c in ("(", "::", "."):
+                s = s.rstrip()
+        return s.rstrip()

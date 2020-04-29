@@ -2,10 +2,11 @@ import unittest
 from itertools import combinations
 from lark import Tree, Token, Lark
 from lark import ParseError
-from utils import partial_equivalence, get_grammar
-from transformation import StatementRemover, PrettyPrinter, ColumnRemover, ValueMinimizer, ExprSimplifier, \
+from utils import partial_equivalence, get_grammar, PrettyPrinter
+from transformation import StatementRemover, ColumnRemover, ExprSimplifier, \
     TokenRemover, TokenRemoverNonConsec, CompoundSimplifier, OptionalRemover, OptionalFinder, BalancedParenRemover, \
-    Canonicalizer, SROC, StatementRemoverByType, CaseSimplifier, ConstraintRemover
+    StatementRemoverByType, CaseSimplifier, ConstraintRemover
+from canonicalizations import ValueMinimizer, SROC, Canonicalizer
 from pathlib import Path
 from sql_parser import SQLParser
 from reducer import Reducer
