@@ -134,78 +134,6 @@ class AbstractTransformationsIterator:
         return type(self).__name__ + multi_remove
 
 
-class StatementRemover(AbstractTransformationsIterator):
-    """
-    Remove the statements at the indices indicated by remove_indices.
-
-    :param: remove_indices: list or set of integers. Overwritten by all_transforms
-    :param: multi_remove: ignored, always set to True
-    """
-    def __init__(self, remove_list=None, multi_remove=True):
-        AbstractTransformationsIterator.__init__(self, remove_list=remove_list, multi_remove=True)
-
-    def transform(self, tree: Tree) -> Tree:
-        """
-        Remove the statements at the indices in remove_indices.
-        :param tree:
-        :return:
-        """
-        assert tree.data == 'sql_stmt_list'
-        self.remove_list.sort()
-        new_children = []
-        i = 0  # index into self.remove_indices
-        # iterate over children, only copying those that remain
-        for j, c in enumerate(tree.children):
-            if i < len(self.remove_list) and j == self.remove_list[i]:
-                i += 1
-            else:
-                new_children.append(c)
-        return Tree('sql_stmt_list', new_children, tree.meta)
-
-    def gen_reduction_params(self, tree):
-        self.num_actions = len(tree.children)
-        for i in range(len(tree.children)):
-            yield i
-
-
-class StatementRemoverByType(AbstractTransformationsIterator):
-    """
-    Remove sql statements by type of the statement. E.g. run:
-        self.set_up(['insert_stmt'])
-        reduced = self.transform(tree)
-    to remove all insert statements from the tree.
-    Consult sql.lark or run self.gen_reduction_params(tree) to find
-    other types of statements that can be removed.
-    """
-    def __init__(self, remove_list=None, multi_remove=False):
-        super().__init__(remove_list=remove_list, multi_remove=multi_remove)
-
-    def transform(self, tree):
-        if tree.data != 'sql_stmt_list':
-            raise ValueError('StatementRemoverByType: root of tree must be sql_stmt_list')
-        new_children = []
-        for c in tree.children:
-            if len(c.children) == 0:
-                logging.debug(f'StatementRemoverByType: Unexpectedly encountered empty node: {c}')
-                continue
-            if c.children[0].data not in self.remove_list:
-                new_children.append(c)
-        return NamedTree('sql_stmt_list', new_children, tree.meta)
-
-    def gen_reduction_params(self, tree):
-        if tree.data != 'sql_stmt_list':
-            raise ValueError('StatementRemoverByType: root of tree must be sql_stmt_list')
-        types = set()
-        for c in tree.children:
-            if len(c.children) == 0:
-                logging.debug(f'StatementRemoverByType: Unexpectedly encountered empty node: {c}')
-                continue
-            types.add(c.children[0].data)
-        self.num_actions = len(types)
-        for t in types:
-            yield t
-
-
 class BalancedParenRemover(Transformer, AbstractTransformationsIterator):
     """
     Remove balanced parentheses.
@@ -243,73 +171,6 @@ class BalancedParenRemover(Transformer, AbstractTransformationsIterator):
         for i in local_remove_list:
             del children[i]
         return NamedTree(data, children, meta)
-
-# TODO: remove references to Tree
-class ExprSimplifier(Transformer, AbstractTransformationsIterator):
-    def __init__(self, remove_list=None, multi_remove=True):
-        Transformer.__init__(self)
-        AbstractTransformationsIterator.__init__(self, remove_list=remove_list, multi_remove=multi_remove)
-
-    def expr(self, children):
-        # TODO: perform bounds check
-        new_children = [c for c in children]
-        if len(children) == 0:
-            logging.debug('Unexpected empty children in expr')
-            return NamedTree('expr', new_children)
-        local_remove_list = []
-        offset = 0
-        if children[0].data == "k_not":
-            offset = 1
-            if self.index in self.remove_list:
-                local_remove_list.append(0)
-            self.index += 1
-        if len(children) > 2:
-            if self.index in self.remove_list:
-                local_remove_list += [offset+1, offset+2]
-            elif self.index + 1 in self.remove_list:
-                new_children[-1:] = new_children[-1].children
-                local_remove_list += [offset, offset+1]
-            self.index += 2
-        for i in local_remove_list[::-1]:
-            try:
-                del new_children[i]
-            except IndexError:
-                logging.debug(f'malformed expr with children: {new_children} '
-                              f'and local_remove_list: {local_remove_list}')
-        return Tree("expr", new_children)
-
-    def expr_helper(self, children):
-        local_remove_list = []
-        new_children = [c for c in children]
-        # TODO: add more functions
-        # TODO: perform bounds check
-        if issubclass(type(children[0]), Tree):
-            if children[0].data == "k_cast":
-                if self.index in self.remove_list:
-                    local_remove_list += [0, 3, 4]
-                self.index += 1
-            elif children[0].data == "k_nullif":
-                if self.index in self.remove_list:
-                    local_remove_list += [0, 3, 4]
-                elif self.index + 1 in self.remove_list:
-                    local_remove_list += [0, 2, 3]
-                self.index += 2
-            elif children[0].data in ('agg_fun', 'k_exists'):
-                if self.index in self.remove_list:
-                    local_remove_list += [0]
-                self.index += 1
-        else:
-            # TODO: check if else clause can be removed
-            if len(children) == 3 and children[0].type == 'LPAREN' and children[2].type == 'RPAREN':
-                if self.index in self.remove_list:
-                    local_remove_list += [0, 2]
-                self.index += 1
-        for i in local_remove_list[::-1]:
-            del new_children[i]
-        return Tree("expr_helper", new_children)
-
-    def transform(self, tree):
-        return Transformer.transform(self, tree)
 
 
 class CaseSimplifier(Transformer, AbstractTransformationsIterator):
@@ -453,22 +314,6 @@ class ColumnRemover(AbstractTransformationsIterator):
         return tree
 
 
-class ConstraintRemover(Transformer, AbstractTransformationsIterator):
-    """
-    Remove column constraints in CREATE TABLE statements.
-    (Table constraints are removed by ColumnRemover).
-    """
-    def __init__(self, remove_list=None, multi_remove=True):
-        Transformer.__init__(self)
-        AbstractTransformationsIterator.__init__(self, remove_list=remove_list, multi_remove=multi_remove)
-
-    def column_constraint(self, children):
-        self.index += 1
-        if self.index - 1 in self.remove_list:
-            raise Discard
-        return NamedTree('column_constraint', children)
-
-
 class CompoundSimplifier(Transformer, AbstractTransformationsIterator):
     """
     Simplify compound expressions (UNION, INTERSECT, EXCEPT).
@@ -509,6 +354,161 @@ class CompoundSimplifier(Transformer, AbstractTransformationsIterator):
         if type(tree) != NamedTree:
             tree = NamedTreeConstructor().transform(tree)
         return super().transform(tree)
+
+
+class ConstraintRemover(Transformer, AbstractTransformationsIterator):
+    """
+    Remove column constraints in CREATE TABLE statements.
+    (Table constraints are removed by ColumnRemover).
+    """
+    def __init__(self, remove_list=None, multi_remove=True):
+        Transformer.__init__(self)
+        AbstractTransformationsIterator.__init__(self, remove_list=remove_list, multi_remove=multi_remove)
+
+    def column_constraint(self, children):
+        self.index += 1
+        if self.index - 1 in self.remove_list:
+            raise Discard
+        return NamedTree('column_constraint', children)
+
+
+# TODO: remove references to Tree
+class ExprSimplifier(Transformer, AbstractTransformationsIterator):
+    def __init__(self, remove_list=None, multi_remove=True):
+        Transformer.__init__(self)
+        AbstractTransformationsIterator.__init__(self, remove_list=remove_list, multi_remove=multi_remove)
+
+    def expr(self, children):
+        # TODO: perform bounds check
+        new_children = [c for c in children]
+        if len(children) == 0:
+            logging.debug('Unexpected empty children in expr')
+            return NamedTree('expr', new_children)
+        local_remove_list = []
+        offset = 0
+        if children[0].data == "k_not":
+            offset = 1
+            if self.index in self.remove_list:
+                local_remove_list.append(0)
+            self.index += 1
+        if len(children) > 2:
+            if self.index in self.remove_list:
+                local_remove_list += [offset+1, offset+2]
+            elif self.index + 1 in self.remove_list:
+                new_children[-1:] = new_children[-1].children
+                local_remove_list += [offset, offset+1]
+            self.index += 2
+        for i in local_remove_list[::-1]:
+            try:
+                del new_children[i]
+            except IndexError:
+                logging.debug(f'malformed expr with children: {new_children} '
+                              f'and local_remove_list: {local_remove_list}')
+        return Tree("expr", new_children)
+
+    def expr_helper(self, children):
+        local_remove_list = []
+        new_children = [c for c in children]
+        # TODO: add more functions
+        # TODO: perform bounds check
+        if issubclass(type(children[0]), Tree):
+            if children[0].data == "k_cast":
+                if self.index in self.remove_list:
+                    local_remove_list += [0, 3, 4]
+                self.index += 1
+            elif children[0].data == "k_nullif":
+                if self.index in self.remove_list:
+                    local_remove_list += [0, 3, 4]
+                elif self.index + 1 in self.remove_list:
+                    local_remove_list += [0, 2, 3]
+                self.index += 2
+            elif children[0].data in ('agg_fun', 'k_exists'):
+                if self.index in self.remove_list:
+                    local_remove_list += [0]
+                self.index += 1
+        else:
+            # TODO: check if else clause can be removed
+            if len(children) == 3 and children[0].type == 'LPAREN' and children[2].type == 'RPAREN':
+                if self.index in self.remove_list:
+                    local_remove_list += [0, 2]
+                self.index += 1
+        for i in local_remove_list[::-1]:
+            del new_children[i]
+        return Tree("expr_helper", new_children)
+
+    def transform(self, tree):
+        return Transformer.transform(self, tree)
+
+
+class ListItemRemover(AbstractTransformationsIterator):
+    """
+    Remove items at a given index from all list_expr in a statement.
+    (Note: list_expr (from unrecognized.lark) shouldn't be confused with
+           expr_list (from sql.lark).)
+
+    Example:
+    Consider the following statement:
+        INSERT INTO t0 (c0, c1) VALUES (0, 1), (2, 3);
+                      list_expr     list_expr list_expr
+    Suppose this couldn't be parsed with sql.lark.
+    Thus, the parser would fall back onto unrecognized.lark and parse this into
+    the three list_expr indicated above (and some other irrelevant stuff). Removing items for each of
+    them individually won't work. Thus, ListItemRemover removes the items at the
+    same index for all list_expr simultaneously:
+        INSERT INTO t0 (c1) VALUES (1), (3);
+    Of course, this is just a heuristic. There could be cases where removing items
+    at the same index simultaneously doesn't make any sense.
+    """
+    def __init__(self, remove_index=(0, 0), multi_remove=True):
+        super().__init__(multi_remove=multi_remove)
+        self.remove_index = remove_index
+        self.stmt_index = -1
+        self.list_expr_max_length = []
+
+    def _default(self, tree):
+        return NamedTree(tree.data, list(map(self.transform, tree.children)))
+
+    def transform(self, tree):
+        if type(tree) == DataToken:
+            return tree.__deepcopy__(None)
+
+        if type(tree) != NamedTree:
+            tree = NamedTreeConstructor().transform(tree)
+
+        if tree.data == 'unexpected_stmt':
+            return self.unexpected_stmt(tree)
+        elif tree.data == 'list_expr':
+            return self.list_expr(tree)
+        else:
+            return self._default(tree)
+
+    def unexpected_stmt(self, tree):
+        self.list_expr_max_length.append(0)
+        self.stmt_index += 1
+        return self._default(tree)
+
+    def list_expr(self, tree):
+        self.list_expr_max_length[-1] = max(self.list_expr_max_length[-1], len(tree.children))
+        if self.stmt_index == self.remove_index[0]:
+            if self.remove_index[1] < len(tree.children):
+                tree = tree.__deepcopy__(None)
+                del tree.children[self.remove_index[1]]
+        return tree
+
+    def set_up(self, item):
+        self.remove_index = item
+        self.stmt_index = -1
+        self.list_expr_max_length = []
+
+    def gen_reduction_params(self, tree):
+        self.set_up((0, 0))
+        _ = self.transform(tree)
+        num_stmts = self.stmt_index + 1
+        max_lengths = [x for x in self.list_expr_max_length]
+        assert num_stmts == len(max_lengths)
+        for i in range(0, num_stmts):
+            for j in range(0, max_lengths[i]):
+                yield i, j
 
 
 class OptionalFinder(Transformer):
@@ -607,75 +607,76 @@ class OptionalRemover(Transformer, AbstractTransformationsIterator):
         return Tree(data, children, meta)
 
 
-class ListItemRemover(AbstractTransformationsIterator):
+class StatementRemover(AbstractTransformationsIterator):
     """
-    Remove items at a given index from all list_expr in a statement.
-    (Note: list_expr (from unrecognized.lark) shouldn't be confused with
-           expr_list (from sql.lark).)
+    Remove the statements at the indices indicated by remove_indices.
 
-    Example:
-    Consider the following statement:
-        INSERT INTO t0 (c0, c1) VALUES (0, 1), (2, 3);
-                      list_expr     list_expr list_expr
-    Suppose this couldn't be parsed with sql.lark.
-    Thus, the parser would fall back onto unrecognized.lark and parse this into
-    the three list_expr indicated above (and some other irrelevant stuff). Removing items for each of
-    them individually won't work. Thus, ListItemRemover removes the items at the
-    same index for all list_expr simultaneously:
-        INSERT INTO t0 (c1) VALUES (1), (3);
-    Of course, this is just a heuristic. There could be cases where removing items
-    at the same index simultaneously doesn't make any sense.
+    :param: remove_indices: list or set of integers. Overwritten by all_transforms
+    :param: multi_remove: ignored, always set to True
     """
-    def __init__(self, remove_index=(0, 0), multi_remove=True):
-        super().__init__(multi_remove=multi_remove)
-        self.remove_index = remove_index
-        self.stmt_index = -1
-        self.list_expr_max_length = []
+    def __init__(self, remove_list=None, multi_remove=True):
+        AbstractTransformationsIterator.__init__(self, remove_list=remove_list, multi_remove=True)
 
-    def _default(self, tree):
-        return NamedTree(tree.data, list(map(self.transform, tree.children)))
-
-    def transform(self, tree):
-        if type(tree) == DataToken:
-            return tree.__deepcopy__(None)
-
-        if type(tree) != NamedTree:
-            tree = NamedTreeConstructor().transform(tree)
-
-        if tree.data == 'unexpected_stmt':
-            return self.unexpected_stmt(tree)
-        elif tree.data == 'list_expr':
-            return self.list_expr(tree)
-        else:
-            return self._default(tree)
-
-    def unexpected_stmt(self, tree):
-        self.list_expr_max_length.append(0)
-        self.stmt_index += 1
-        return self._default(tree)
-
-    def list_expr(self, tree):
-        self.list_expr_max_length[-1] = max(self.list_expr_max_length[-1], len(tree.children))
-        if self.stmt_index == self.remove_index[0]:
-            if self.remove_index[1] < len(tree.children):
-                tree = tree.__deepcopy__(None)
-                del tree.children[self.remove_index[1]]
-        return tree
-
-    def set_up(self, item):
-        self.remove_index = item
-        self.stmt_index = -1
-        self.list_expr_max_length = []
+    def transform(self, tree: Tree) -> Tree:
+        """
+        Remove the statements at the indices in remove_indices.
+        :param tree:
+        :return:
+        """
+        assert tree.data == 'sql_stmt_list'
+        self.remove_list.sort()
+        new_children = []
+        i = 0  # index into self.remove_indices
+        # iterate over children, only copying those that remain
+        for j, c in enumerate(tree.children):
+            if i < len(self.remove_list) and j == self.remove_list[i]:
+                i += 1
+            else:
+                new_children.append(c)
+        return Tree('sql_stmt_list', new_children, tree.meta)
 
     def gen_reduction_params(self, tree):
-        self.set_up((0, 0))
-        _ = self.transform(tree)
-        num_stmts = self.stmt_index + 1
-        max_lengths = [x for x in self.list_expr_max_length]
-        assert num_stmts == len(max_lengths)
-        for i in range(0, num_stmts):
-            for j in range(0, max_lengths[i]):
-                yield i, j
+        self.num_actions = len(tree.children)
+        for i in range(len(tree.children)):
+            yield i
+
+
+class StatementRemoverByType(AbstractTransformationsIterator):
+    """
+    Remove sql statements by type of the statement. E.g. run:
+        self.set_up(['insert_stmt'])
+        reduced = self.transform(tree)
+    to remove all insert statements from the tree.
+    Consult sql.lark or run self.gen_reduction_params(tree) to find
+    other types of statements that can be removed.
+    """
+    def __init__(self, remove_list=None, multi_remove=False):
+        super().__init__(remove_list=remove_list, multi_remove=multi_remove)
+
+    def transform(self, tree):
+        if tree.data != 'sql_stmt_list':
+            raise ValueError('StatementRemoverByType: root of tree must be sql_stmt_list')
+        new_children = []
+        for c in tree.children:
+            if len(c.children) == 0:
+                logging.debug(f'StatementRemoverByType: Unexpectedly encountered empty node: {c}')
+                continue
+            if c.children[0].data not in self.remove_list:
+                new_children.append(c)
+        return NamedTree('sql_stmt_list', new_children, tree.meta)
+
+    def gen_reduction_params(self, tree):
+        if tree.data != 'sql_stmt_list':
+            raise ValueError('StatementRemoverByType: root of tree must be sql_stmt_list')
+        types = set()
+        for c in tree.children:
+            if len(c.children) == 0:
+                logging.debug(f'StatementRemoverByType: Unexpectedly encountered empty node: {c}')
+                continue
+            types.add(c.children[0].data)
+        self.num_actions = len(types)
+        for t in types:
+            yield t
 
 
 class TokenRemover(Transformer, AbstractTransformationsIterator):
