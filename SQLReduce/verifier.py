@@ -96,6 +96,7 @@ class DuckDBVerifier(AbstractVerifier):
         self.errors = None
         if self.exitcode == 0:
             self.errors = q.get()
+        logging.info(f'DuckDB Verifier: errors: {self.errors}')
 
     def verify(self, original: List[str], reduced: List[str]):
         """

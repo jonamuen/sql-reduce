@@ -52,7 +52,7 @@ class SQLParser(Lark):
                                       [Tree('sql_stmt', [t])]))
                 except LarkError as e2:
                     # warn if statement couldn't be parsed by unexpected stmt parser
-                    logging.warning(e2)
+                    logging.warning((s, e2))
                     # construct error tree
                     t = Tree("sql_stmt_list",
                              [Tree("sql_stmt",
