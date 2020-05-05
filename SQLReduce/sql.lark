@@ -19,7 +19,7 @@ select_stmt.1: k_select k_all? k_distinct? subquery_or_expr_list from_clause? \
 create_table_stmt.1: k_create k_table (k_if k_not k_exists)? table_name\
                         LPAREN column_def_list RPAREN
 
-create_view_stmt: k_create k_view table_name k_as LPAREN subquery_or_expr_as RPAREN
+create_view_stmt: k_create k_view table_name (LPAREN column_list RPAREN)? k_as select_stmt_full
 
 insert_stmt: k_insert k_into table_name (LPAREN column_list RPAREN)? k_values values_list
 
@@ -50,7 +50,8 @@ column_def_list: column_def ("," column_def)* ("," table_constraint)*
 
 column_def: NAME sql_type? column_constraint*
 
-join_clause: (((k_inner | (k_left k_outer?) | (k_right k_outer?) | (k_full k_outer?))? k_join) | ",") \
+// force ',' to appear in parse tree with '!'
+!join_clause: (((k_inner | (k_left k_outer?) | (k_right k_outer?) | (k_full k_outer?))? k_join) | ",") \
                 subquery_or_expr_as (k_on expr)?
 
 where_clause: k_where expr
@@ -91,7 +92,7 @@ column_name: NAME (DOT NAME)? (DOT NAME)?
 sql_type: NAME NAME? (LPAREN VALUE RPAREN)?
 
 column_constraint: (k_constraint NAME)? ((k_check LPAREN expr RPAREN) | (k_not VALUE conflict_clause?) \
-                                        | (k_unique conflict_clause?) | (k_default expr) | (k_primary k_key (k_asc | k_desc)? conflict_clause?) \
+                                        | (k_unique conflict_clause?) | (k_default (LPAREN expr RPAREN | VALUE)) | (k_primary k_key (k_asc | k_desc)? conflict_clause?) \
                                         | (k_collate NAME))
 
 table_constraint.2: (k_constraint NAME)? (((k_primary k_key | k_unique) LPAREN name_list RPAREN conflict_clause?)
@@ -113,7 +114,7 @@ name_list: NAME ("," NAME)*
 
 // Note: between is implemented as a normal operator, thus it is much more expressive than actual sql.
 operator: (PLUS | MINUS | STAR | SLASH | EQUAL | NEQ | GREATER | LESS | k_is
-        | k_or | k_and | LEQ | GEQ | k_in | k_between) quantifier?
+        | k_or | k_and | LEQ | GEQ | LSHIFT | RSHIFT | k_in | k_notin | k_between | k_collate) quantifier?
 
 quantifier: k_all | k_any
 
@@ -205,6 +206,7 @@ compound_operator: (k_union k_all?) | k_intersect | k_except
 !k_collate: "COLLATE" | "collate"
 !k_notnull: "NOT NULL" | "not null"
 !k_between: "BETWEEN" | "between"
+!k_notin: NOTIN
 
 PLUS: "+"
 MINUS: "-"
@@ -213,6 +215,8 @@ SLASH: "/"
 EQUAL: "="
 GREATER: ">"
 LESS: "<"
+RSHIFT: ">>"
+LSHIFT: "<<"
 NEQ: "!="
 LEQ: "<="
 GEQ: ">="
@@ -236,10 +240,12 @@ CONSTRAINT.3: /(CONSTRAINT)|(constraint)/
 
 KEY.3: /(KEY)|(key)/
 
+NOTIN.3: /(NOT IN)|(not in)/
+
 NAME.2: /[a-zA-Z_]/ /[a-zA-Z0-9_]*/ | /"([^"]|"")*"/
 
 VALUE.2: /'([^']|'')*'/
-       | ("+"|"-")? /[0-9]+/ /(\.[0-9]*)/?
+       | ("+"|"-")? /[0-9]+/ /(\.[0-9]*)(E-?[0-9]+)?/?
        | "NULL"
        | "null"
 

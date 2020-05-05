@@ -77,12 +77,26 @@ class ParserTest(unittest.TestCase):
         tree = self.parser.parse("CREATE TABLE t0 (id INT);")
         self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
 
+    def test_create_view(self):
+        tree = self.parser.parse('CREATE VIEW v0 AS SELECT c0 FROM t0;')
+        self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
+        self.assertEqual(1, len(list(tree.find_data('create_view_stmt'))))
+
+    def test_create_view_with_cols(self):
+        tree = self.parser.parse('CREATE VIEW v0(c0, c1) AS SELECT c0 FROM t0;')
+        self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
+        self.assertEqual(1, len(list(tree.find_data('create_view_stmt'))))
+
     def test_select_distinct(self):
         tree = self.parser.parse("SELECT DISTINCT id FROM t0;")
         self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
 
     def test_select_star(self):
         tree = self.parser.parse("SELECT * FROM t0;")
+        self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
+
+    def test_scientific_notation(self):
+        tree = self.parser.parse("SELECT 1.0E10 FROM t0;")
         self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
 
     def test_select_with_table_ref(self):
@@ -164,6 +178,10 @@ class ParserTest(unittest.TestCase):
         tree = self.parser.parse("SELECT c0 FROM t0 WHERE NOT c0 = NULL;")
         self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
 
+    def test_not_in(self):
+        tree = self.parser.parse('SELECT c0 FROM t0 WHERE c0 NOT IN (SELECT c0 FROM t0);')
+        self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
+
     def test_and(self):
         tree = self.parser.parse("SELECT c0 FROM t0 WHERE NOT c0 = NULL and c1 = 0;")
         self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
@@ -176,6 +194,11 @@ class ParserTest(unittest.TestCase):
         tree = self.parser.parse("SELECT c0 FROM t0 WHERE c0 BETWEEN 0 AND 3;")
         self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
         self.assertEqual(1, len(list(tree.find_data("k_between"))))
+
+    def test_shift(self):
+        tree = self.parser.parse('SELECT (c0 << 2) >> 3 FROM t0;')
+        self.assertEqual(0, len(list(tree.find_data("unexpected_stmt"))))
+        self.assertEqual(2, len(list(tree.find_data("operator"))))
 
     def test_agg_func(self):
         tree = self.parser.parse("SELECT SUM(c0) FROM t0;")
@@ -222,6 +245,12 @@ class ParserTest(unittest.TestCase):
         tree = self.parser.parse(stmt)
         self.assertEqual(0, len(list(tree.find_data('unexpected_stmt'))))
         self.assertEqual(5, len(list(tree.find_data('column_constraint'))))
+
+    def test_default_value(self):
+        stmt = 'CREATE TABLE t0 (c0 INT DEFAULT 2.0E10);'
+        tree = self.parser.parse(stmt)
+        self.assertEqual(0, len(list(tree.find_data('unexpected_stmt'))))
+        self.assertEqual(1, len(list(tree.find_data('column_constraint'))))
 
     def test_multiple_stmts(self):
         tree = self.parser.parse("CREATE TABLE t0 (id INT); SELECT id FROM t0;")
@@ -451,6 +480,11 @@ class PrettyPrinterTest(unittest.TestCase):
     def test_nested(self):
         tree = self.parser.parse("SELECT * FROM (SELECT * FROM t0);")
         self.assertEqual("SELECT * FROM (SELECT * FROM t0);", self.printer.transform(tree))
+
+    def test_join_comma(self):
+        stmt = "SELECT * FROM t0 , t1;"
+        tree = self.parser.parse(stmt)
+        self.assertEqual(stmt, self.printer.transform(tree))
 
     def test_fully_qualified_column_name(self):
         stmt = "SELECT main.t0.c0 FROM main.t0;"
@@ -920,12 +954,12 @@ class DuckDBVerifierTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.parser = SQLParser('sql.lark', start="sql_stmt_list", debug=False, parser='lalr')
-        with open('test/real_testcases/duckdb/issue3.sql') as f:
+        with open('test/real_testcases/duckdb/sqlancer/testcases/errors_3.log_0_other.sql') as f:
             stmt = f.read()
         cls.verifier = DuckDBVerifier(original_stmt=stmt)
 
     def test_unmodified(self):
-        with open('test/real_testcases/duckdb/issue3.sql') as f:
+        with open('test/real_testcases/duckdb/sqlancer/testcases/errors_3.log_0_other.sql') as f:
             tree = self.parser.parse(f.read())
         stmts = list(map(PrettyPrinter().transform, tree.children))
         self.assertTrue(self.verifier.verify([], stmts))
