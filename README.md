@@ -8,7 +8,7 @@ Bachelor's thesis of Jonas Müntener
 
 (SQLReduce was developed with python 3.8.2. Other versions might work, but weren't tested.)
 
-1. Download a release from [gitlab](https://gitlab.ethz.ch/jonamuen/sql-reduce/tree/tool/SQLReduce/releases) and unpack it.
+1. Download a release from [gitlab](https://gitlab.ethz.ch/jonamuen/sql-reduce/tree/tool/releases) and unpack it.
 
 2. Install dependencies with `pip install -r requirements.txt`.
 Currently, [lark](https://github.com/lark-parser/lark) is the only dependency.
