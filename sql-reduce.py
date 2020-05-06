@@ -10,6 +10,7 @@ from SQLReduce.verifier import Verifier
 from SQLReduce.sql_parser import SQLParser
 from time import time
 from SQLReduce.utils import get_grammar
+from SQLReduce import grammars
 
 
 def main():
@@ -27,7 +28,7 @@ def main():
     else:
         logging.basicConfig(level=logging.WARNING, format=fmt, datefmt=datefmt)
 
-    sql_grammar = get_grammar('sql.lark', 'lark.lark')
+    sql_grammar = get_grammar(grammars.sql, grammars.lark)
     optionals = OptionalFinder().transform(sql_grammar)
     reduction_passes = [StatementRemoverByType(), StatementRemover(), OptionalRemover(optionals=optionals), CompoundSimplifier(), ColumnRemover(),
                         ExprSimplifier(), ListItemRemover(), BalancedParenRemover(), ValueMinimizer(), TokenRemover(), TokenRemoverNonConsec()]
