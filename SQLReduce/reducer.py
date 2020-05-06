@@ -1,8 +1,8 @@
-from verifier import AbstractVerifier
-from reductions import AbstractTransformationsIterator
-from utils import PrettyPrinter
+from .verifier import AbstractVerifier
+from .reductions import AbstractTransformationsIterator
+from .utils import PrettyPrinter
 from typing import List
-from sql_parser import SQLParser
+from .sql_parser import SQLParser
 import logging
 from time import time
 

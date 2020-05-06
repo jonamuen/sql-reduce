@@ -2,14 +2,14 @@
 import argparse
 import logging
 
-from reducer import Reducer
-from reductions import StatementRemover, StatementRemoverByType, ColumnRemover, ExprSimplifier, ListItemRemover, TokenRemover,\
+from SQLReduce.reducer import Reducer
+from SQLReduce.reductions import StatementRemover, StatementRemoverByType, ColumnRemover, ExprSimplifier, ListItemRemover, TokenRemover,\
     TokenRemoverNonConsec, OptionalRemover, CompoundSimplifier, OptionalFinder, BalancedParenRemover
-from canonicalizations import ValueMinimizer, SROC, Canonicalizer
-from verifier import Verifier
-from sql_parser import SQLParser
+from SQLReduce.canonicalizations import ValueMinimizer, SROC, Canonicalizer
+from SQLReduce.verifier import Verifier
+from SQLReduce.sql_parser import SQLParser
 from time import time
-from utils import get_grammar
+from SQLReduce.utils import get_grammar
 
 
 def main():

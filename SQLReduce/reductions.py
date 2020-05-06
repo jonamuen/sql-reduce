@@ -2,7 +2,7 @@ from lark import Transformer, v_args, Discard
 from lark import Tree
 from lark.lexer import Token
 from typing import Iterator, Tuple
-from named_tree import NamedTree, NamedTreeConstructor, DataToken
+from .named_tree import NamedTree, NamedTreeConstructor, DataToken
 from itertools import combinations
 from math import comb
 import logging

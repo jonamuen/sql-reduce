@@ -4,8 +4,8 @@ from lark import Tree
 from lark.lexer import Token
 from lark.visitors import Transformer, v_args
 
-from named_tree import DataToken, NamedTree, NamedTreeConstructor
-from reductions import AbstractTransformationsIterator
+from .named_tree import DataToken, NamedTree, NamedTreeConstructor
+from .reductions import AbstractTransformationsIterator
 
 
 class ValueMinimizer(Transformer, AbstractTransformationsIterator):
