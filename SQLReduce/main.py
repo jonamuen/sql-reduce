@@ -30,11 +30,11 @@ def main():
     sql_grammar = get_grammar('sql.lark', 'lark.lark')
     optionals = OptionalFinder().transform(sql_grammar)
     reduction_passes = [StatementRemoverByType(), StatementRemover(), OptionalRemover(optionals=optionals), CompoundSimplifier(), ColumnRemover(),
-                        ExprSimplifier(), ListItemRemover(), BalancedParenRemover(), TokenRemover(), TokenRemoverNonConsec()]
+                        ExprSimplifier(), ListItemRemover(), BalancedParenRemover(), ValueMinimizer(), TokenRemover(), TokenRemoverNonConsec()]
 
     reducer = Reducer(SQLParser('sql.lark', start="sql_stmt_list", debug=False, parser='lalr'),
                       Verifier(args.verifier, 'test.sql'),
-                      reduction_passes, canonicalizations=[ValueMinimizer(), Canonicalizer(), SROC()])
+                      reduction_passes, canonicalizations=[Canonicalizer(), SROC()])
     with open(args.sql) as f:
         stmt = f.read()
 

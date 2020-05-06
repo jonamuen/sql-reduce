@@ -83,10 +83,10 @@ class Reducer:
                     if best_lenght < self.best_length:
                         self.best_length = best_lenght
                         global_fixed_point = False
-            # run canonicalizations after all reductions
-            for t in self.canonicalizations:
-                best, best_lenght = self._itr_until_fixedpoint(t, best, check_length=False)
-                self.best_length = best_lenght
+                # run canonicalizations after all reductions
+                for t in self.canonicalizations:
+                    best, best_lenght = self._itr_until_fixedpoint(t, best, check_length=False)
+                    self.best_length = best_lenght
         except KeyboardInterrupt:
             pass
         logging.info(f"Iterations: {self.itr_counter}, Shortest result (bytes): {self.best_length}")
