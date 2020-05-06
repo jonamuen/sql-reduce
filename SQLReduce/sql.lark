@@ -35,7 +35,9 @@ values_list: value_tuple ("," value_tuple)*
 
 value_tuple: "(" expr ("," expr)* ")"
 
-assign_list: column_name EQUAL (VALUE | NAME) ("," column_name EQUAL (VALUE | NAME))*
+assign_list: assignment ("," assignment)*
+
+assignment: column_name EQUAL (VALUE | NAME)
 
 subquery_or_expr_list: subquery_or_expr_as ("," subquery_or_expr_as)*
 

@@ -165,8 +165,10 @@ class ParserTest(unittest.TestCase):
     def test_update(self):
         tree = self.parser.parse("UPDATE t0 SET id = 0;")
         self.assertEqual(1, len(list(tree.find_data("update_stmt"))))
+        self.assertEqual(1, len(list(tree.find_data('assignment'))))
         tree = self.parser.parse("UPDATE t0 SET id = 0, name = '' where name = NULL;")
         self.assertEqual(1, len(list(tree.find_data("update_stmt"))))
+        self.assertEqual(2, len(list(tree.find_data('assignment'))))
 
     def test_delete(self):
         tree = self.parser.parse("DELETE FROM t0;")
@@ -480,6 +482,11 @@ class PrettyPrinterTest(unittest.TestCase):
     def test_nested(self):
         tree = self.parser.parse("SELECT * FROM (SELECT * FROM t0);")
         self.assertEqual("SELECT * FROM (SELECT * FROM t0);", self.printer.transform(tree))
+
+    def test_update(self):
+        stmt = 'UPDATE t0 SET c0 = 1, c2 = 2;'
+        tree = self.parser.parse(stmt)
+        self.assertEqual(stmt, self.printer.transform(tree))
 
     def test_join_comma(self):
         stmt = "SELECT * FROM t0 , t1;"

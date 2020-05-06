@@ -298,9 +298,11 @@ class ColumnRemover(AbstractTransformationsIterator):
         :param tree:
         :return:
         """
-        # an assignment consists of [column_name, EQUAL, VALUE], thus divide by 3
-        assert len(tree['assign_list', 0].children) % 3 == 0
-        num_columns = len(tree.children[3].children) // 3
+        assign_list = tree['assign_list', 0]
+        if assign_list is None:
+            logging.debug('ColumnRemover: found UPDATE without assign_list')
+            return tree
+        num_columns = len(assign_list.children)
         # compute list of indices that map to children of this node(filter) and align to 0 (map)
         local_remove_list = sorted(filter(lambda x: 0 <= x < num_columns, map(lambda x: x - self.index, self.remove_list)),
                                    reverse=True)
@@ -308,8 +310,7 @@ class ColumnRemover(AbstractTransformationsIterator):
             tree = tree.__deepcopy__(None)
         for i in local_remove_list:
             assignment_list = tree['assign_list', 0]
-            # delete [column_name, EQUAL, VALUE]
-            del assignment_list.children[3*i:3*(i+1)]
+            del assignment_list.children[i]
         self.index += num_columns
         return tree
 
