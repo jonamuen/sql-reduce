@@ -1,9 +1,0 @@
-\section{Related Work}
-\subsection{C-Reduce}
-C-Reduce is a specialized reduction tool for C source code. It implements various local transformations, e.g. changing the value of constants, as well as compiler-like transformations such as \textit{scalar replacement of aggregates} or \textit{function inlining}. The transformations are applied repeatedly until a fixpoint is reached.\cite{regehr2012reduction}
-
-\subsection{Perses}
-Perses is a general purpose reduction tool that uses the formal syntax of a programming language to ensure that only syntactically valid reductions are attempted. It operates on parse trees, replacing nodes with suitable child-nodes. Like C-Reduce, it iterates its reduction algorithm until a fixpoint is reached.\cite{sun2019perses}
-
-\subsection{Apollo}
-Apollo is a toolchain for automatically detecting and reporting performance regressions is database management systems. To facilitate reporting, it includes SQLMin, a query reduction tool. SQLMin focuses on isolating the subquery that cause a performance regression and then further minimizing this subquery. It is aware of dependencies in queries, for instance, it avoids removing a column if that column is referenced elsewhere.\cite{jung2019apollo}

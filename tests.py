@@ -2,15 +2,16 @@ import unittest
 from itertools import combinations
 from lark import Tree, Token, Lark
 from lark import ParseError
-from utils import partial_equivalence, get_grammar, PrettyPrinter
-from reductions import StatementRemover, ColumnRemover, ExprSimplifier, \
+from SQLReduce.utils import partial_equivalence, get_grammar, PrettyPrinter
+from SQLReduce.reductions import StatementRemover, ColumnRemover, ExprSimplifier, \
     TokenRemover, TokenRemoverNonConsec, CompoundSimplifier, OptionalRemover, OptionalFinder, BalancedParenRemover, \
     StatementRemoverByType, CaseSimplifier, ConstraintRemover
-from canonicalizations import ValueMinimizer, SROC, Canonicalizer
+from SQLReduce.canonicalizations import ValueMinimizer, SROC, Canonicalizer
 from pathlib import Path
-from sql_parser import SQLParser
-from reducer import Reducer
-from verifier import AbstractVerifier, ExternalVerifier, SQLiteReturnSetVerifier, Verifier, DuckDBVerifier
+from SQLReduce.sql_parser import SQLParser
+from SQLReduce.reducer import Reducer
+from SQLReduce.verifier import AbstractVerifier, ExternalVerifier, SQLiteReturnSetVerifier, Verifier, DuckDBVerifier
+from SQLReduce import grammars
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
@@ -324,9 +325,7 @@ class ParserTest(unittest.TestCase):
 class UnrecognizedParserTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        with open('unrecognized.lark') as f:
-            grammar = f.read()
-        cls.parser = Lark(grammar, start='unexpected_stmt', debug=True, parser='lalr')
+        cls.parser = Lark(grammars.unrecognized, start='unexpected_stmt', debug=True, parser='lalr')
 
     def test_find_list_exprs(self):
         stmt = "UPSERT INTO main.t1 (c0, c2, c1) VALUES" \
@@ -553,7 +552,7 @@ class OptionalRemoverTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.parser = SQLParser('sql.lark', start='sql_stmt_list', debug=True, parser='lalr')
         cls.pprinter = PrettyPrinter()
-        cls.optionals = OptionalFinder().transform(get_grammar('sql.lark', 'lark.lark'))
+        cls.optionals = OptionalFinder().transform(get_grammar(grammars.sql, grammars.lark))
 
     def test_from_clause(self):
         stmt = "SELECT * FROM t0 WHERE c0 > c1;"

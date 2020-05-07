@@ -1,8 +1,8 @@
-from verifier import AbstractVerifier
-from reductions import AbstractTransformationsIterator
-from utils import PrettyPrinter
+from .verifier import AbstractVerifier
+from .reductions import AbstractTransformationsIterator
+from .utils import PrettyPrinter
 from typing import List
-from sql_parser import SQLParser
+from .sql_parser import SQLParser
 import logging
 from time import time
 
@@ -21,7 +21,8 @@ class Reducer:
     """
     def __init__(self, parser: SQLParser, verifier: AbstractVerifier,
                  reductions: List[AbstractTransformationsIterator],
-                 canonicalizations: List[AbstractTransformationsIterator]):
+                 canonicalizations: List[AbstractTransformationsIterator],
+                 output: str = 'reduced.sql'):
         """
         :param parser: a parser for sql
         :param verifier: used to check if a reduction candidate is equivalent to the original statement
@@ -39,6 +40,7 @@ class Reducer:
         self.cache = set()
         self.stmts_original = None
         self.stats = {'verification': 0., 'generation': 0., 'to_str': 0.}
+        self.output = output
 
     def reduce(self, stmt: str):
         """
@@ -143,7 +145,7 @@ class Reducer:
                         best_length = len(stmt_cand)
                         tree = candidate
                         progress = i
-                        with open('best.sql', 'w') as f:
+                        with open(self.output, 'w') as f:
                             f.write(stmt_cand)
                         break
                 self.cache.add(stmt_hash)

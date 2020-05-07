@@ -1,6 +1,8 @@
 from lark import *
-from named_tree import NamedTreeConstructor, NamedTree
-from utils import expand_grammar, split_into_stmts
+
+from .named_tree import NamedTreeConstructor, NamedTree
+from .utils import split_into_stmts
+from . import grammars
 import logging
 
 
@@ -11,11 +13,8 @@ class SQLParser(Lark):
     backslash with whitespace).
     """
     def __init__(self, grammar, **options):
-        with open(expand_grammar(grammar)) as f:
-            super().__init__(f, **options)
-        with open(expand_grammar('unrecognized.lark')) as f:
-            self.unrecognized_stmt_parser = Lark(f, start='unexpected_stmt',
-                                                 debug=True, parser='lalr')
+        super().__init__(grammars.sql, **options)
+        self.unrecognized_stmt_parser = Lark(grammars.unrecognized, start='unexpected_stmt', debug=True, parser='lalr')
 
     def parse(self, text: str, start=None) -> NamedTree:
         """

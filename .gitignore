@@ -6,8 +6,6 @@
 *.log
 *.pdf
 *.synctex.gz
-SQLReduce/venv
-SQLReduce/gen
-SQLReduce/parser
+venv
 *expanded.lark
 *__pycache__

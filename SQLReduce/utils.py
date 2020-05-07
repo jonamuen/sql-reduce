@@ -4,26 +4,6 @@ from typing import Union, Optional
 from lark.visitors import Transformer, v_args
 
 
-def expand_grammar(filename: str):
-    """
-    Replace newlines preceded by a backslash with whitespace.
-    This allows linebreaks inside grammar definitions.
-    :param filename: path to file
-    :return: The filename of the expanded grammar file.
-    """
-    name, extension = filename.split('.')
-    exp_filename = name + 'expanded.' + extension
-    with open(filename) as in_file:
-        with open(exp_filename, 'w') as out_file:
-            for line in in_file:
-                if len(line) >= 2 and line[-2] == '\\':
-                    out_file.write(line[:-2] + ' ')
-                else:
-                    out_file.write(line)
-            out_file.write('\n')
-    return exp_filename
-
-
 def partial_equivalence(full: Union[Tree, Token], partial: Optional[Union[Tree, Token]]):
     """
     Compute if a tree is equivalent to a partial tree. A partial tree is a tree
@@ -58,7 +38,7 @@ def partial_equivalence(full: Union[Tree, Token], partial: Optional[Union[Tree, 
     return True
 
 
-def get_grammar(sql_grammar_file: str, lark_grammar_file: str):
+def get_grammar(sql_grammar: str, lark_grammar: str):
     """
     Parse sql grammar using a parser for .lark files. Access to the SQL grammar
     can be used for instance to automatically find some optionals (see OptionalFinder
@@ -67,10 +47,8 @@ def get_grammar(sql_grammar_file: str, lark_grammar_file: str):
     :param lark_grammar_file: path to the grammar for .lark files
     :return: a parse tree obtained by parsing sql_grammar_file using the lark_grammar_file
     """
-    with open(lark_grammar_file, 'r') as f:
-        parser = Lark(f)
-        with open(expand_grammar(sql_grammar_file)) as grammar_file:
-            return parser.parse(grammar_file.read())
+    parser = Lark(lark_grammar)
+    return parser.parse(sql_grammar)
 
 
 def split_into_stmts(text: str):

@@ -9,7 +9,7 @@ from pathlib import Path
 from multiprocessing import Process, Queue
 from shutil import copy
 
-from utils import split_into_stmts
+from .utils import split_into_stmts
 
 
 class AbstractVerifier:
