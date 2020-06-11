@@ -1,0 +1,264 @@
+// originally inspired by https://github.com/bkiers/sqlite-parser but then
+// developed independently based on https://sqlite.org/lang.html
+// and https://www.duckdb.org/docs/current/sql/sql.html
+
+sql_stmt_list: ";"* (sql_stmt _SEMI+)+
+
+sql_stmt: select_stmt_full
+        | create_table_stmt
+        | create_view_stmt
+        | insert_stmt
+        | upsert_stmt
+        | update_stmt
+        | delete_stmt
+
+// add WITH
+select_stmt_full: with_clause? select_stmt_helper
+
+// resolve shift/reduce conflicts by forcing left associativity
+select_stmt_helper: select_stmt_helper compound_operator select_stmt | select_stmt
+select_stmt.1: k_select k_all? k_distinct? subquery_or_expr_list from_clause? \
+                where_clause? (group_by_clause having_clause?)? order_by_clause? limit_clause? offset_clause?
+
+create_table_stmt.1: k_create k_table (k_if k_not k_exists)? table_name\
+                        LPAREN column_def_list RPAREN
+
+create_view_stmt: k_create k_view table_name (LPAREN column_list RPAREN)? k_as select_stmt_full
+
+insert_stmt: k_insert k_into table_name (LPAREN column_list RPAREN)? k_values values_list
+
+upsert_stmt: k_upsert k_into table_name (LPAREN column_list RPAREN)? k_values values_list
+
+update_stmt: k_update table_name k_set assign_list where_clause?
+
+delete_stmt: k_delete k_from table_name where_clause?
+
+column_list: NAME ("," NAME)*
+
+values_list: value_tuple ("," value_tuple)*
+
+value_tuple: "(" expr ("," expr)* ")"
+
+assign_list: assignment ("," assignment)*
+
+assignment: column_name EQUAL (VALUE | NAME)
+
+subquery_or_expr_list: subquery_or_expr_as ("," subquery_or_expr_as)*
+
+subquery_or_expr_as: expr (k_as NAME)?
+
+with_clause: k_with k_recursive? column_name k_as LPAREN select_stmt_helper RPAREN
+
+from_clause: k_from subquery_or_expr_as join_clause*
+
+// table_constraint included here so that they are reduced by ColumnRemover
+column_def_list: column_def ("," column_def)* ("," table_constraint)*
+
+column_def: NAME sql_type? column_constraint*
+
+// force ',' to appear in parse tree with '!'
+!join_clause: (((k_inner | (k_left k_outer?) | (k_right k_outer?) | (k_full k_outer?))? k_join) | ",") \
+                subquery_or_expr_as (k_on expr)?
+
+where_clause: k_where expr
+
+group_by_clause: k_group k_by expr ("," expr)*
+
+having_clause: k_having expr
+
+order_by_clause: k_order k_by column_name (k_asc | k_desc)?
+
+limit_clause: k_limit POS_INT
+
+offset_clause: k_offset POS_INT
+
+// expr_helper resolves shift/reduce conflicts by forcing right associativity
+expr: k_not? (expr_helper operator expr | expr_helper | expr_helper DOUBLECOL sql_type)
+
+expr_helper: LPAREN expr RPAREN
+           | LPAREN select_stmt_helper RPAREN
+           | column_name
+           | (sql_type)? VALUE
+           | k_cast LPAREN expr k_as sql_type RPAREN
+           | k_nullif LPAREN expr COMMA expr RPAREN
+           | k_coalesce LPAREN subquery_or_expr_list RPAREN
+           | k_exists LPAREN select_stmt_helper RPAREN
+           | k_case expr? case_list k_end
+           | agg_func LPAREN expr RPAREN
+           | k_concat LPAREN subquery_or_expr_list RPAREN
+
+agg_func: k_min | k_max | k_sum | k_avg | k_total | k_count
+
+case_list: k_when expr k_then expr (k_when expr k_then expr)* (k_else expr)?
+
+table_name: (NAME DOT)? NAME
+column_name: NAME (DOT NAME)? (DOT NAME)?
+           | STAR
+
+sql_type: NAME NAME? (LPAREN VALUE RPAREN)?
+
+column_constraint: (k_constraint NAME)? ((k_check LPAREN expr RPAREN) | (k_not VALUE conflict_clause?) \
+                                        | (k_unique conflict_clause?) | (k_default (LPAREN expr RPAREN | VALUE)) | (k_primary k_key (k_asc | k_desc)? conflict_clause?) \
+                                        | (k_collate NAME))
+
+table_constraint.2: (k_constraint NAME)? (((k_primary k_key | k_unique) LPAREN name_list RPAREN conflict_clause?)
+                                        | (k_check LPAREN expr RPAREN)
+                                        | (k_foreign k_key LPAREN name_list RPAREN fk_clause))
+
+conflict_clause: k_on k_conflict (k_rollback | k_abort | k_fail | k_ignore | k_replace)
+
+fk_clause: k_references table_name (LPAREN name_list RPAREN)? fk_conflict_clause? fk_defer?
+
+fk_conflict_clause: (fk_action | k_match NAME)+
+
+fk_action: k_on (k_delete | k_update) (k_set VALUE | k_set k_default | k_cascade \
+                                      | k_restrict | k_no k_action)
+
+fk_defer: k_not? k_deferrable (k_initially (k_deferred | k_immediate))?
+
+name_list: NAME ("," NAME)*
+
+// Note: between is implemented as a normal operator, thus it is much more expressive than actual sql.
+operator: (PLUS | MINUS | STAR | SLASH | EQUAL | NEQ | GREATER | LESS | k_is
+        | k_or | k_and | LEQ | GEQ | LSHIFT | RSHIFT | k_in | k_notin | k_between | k_collate) quantifier?
+
+quantifier: k_all | k_any
+
+compound_operator: (k_union k_all?) | k_intersect | k_except
+
+// force anonymous literals to appear in tree with ! prefix
+!k_select: "SELECT" | "select"
+!k_update: "UPDATE" | "update"
+!k_create: "CREATE" | "create"
+!k_table: "TABLE" | "table"
+!k_from: "FROM" | "from"
+!k_on: "ON" | "on"
+!k_join: "JOIN" | "join"
+!k_where: "WHERE" | "where"
+!k_limit: "LIMIT" | "limit"
+!k_distinct: "DISTINCT" | "distinct"
+!k_as: "AS" | "as"
+!k_is: "IS" | "is"
+!k_or: "OR" | "or"
+!k_offset: "OFFSET" | "offset"
+!k_cast: "CAST" | "cast"
+!k_nullif: NULLIF
+!k_insert: "INSERT" | "insert"
+!k_into: "INTO" | "into"
+!k_values: "VALUES" | "values"
+!k_set: "SET" | "set"
+!k_delete: "DELETE" | "delete"
+!k_not: "NOT" | "not"
+!k_and: "AND" | "and"
+!k_order: "ORDER" | "order"
+!k_by: "BY" | "by"
+!k_asc: "ASC" | "asc"
+!k_desc: "DESC" | "desc"
+!k_view: "VIEW" | "view"
+!k_coalesce: "COALESCE" | "coalesce"
+!k_exists: "EXISTS" | "exists"
+!k_case: "CASE" | "case"
+!k_when: "WHEN" | "when"
+!k_then: "THEN" | "then"
+!k_else: "ELSE" | "else"
+!k_end: "END" | "end"
+!k_inner: "INNER" | "inner"
+!k_left: "LEFT" | "left"
+!k_right: "RIGHT" | "right"
+!k_full: "FULL" | "full"
+!k_outer: "OUTER" | "outer"
+!k_with: "WITH" | "with"
+!k_upsert: "UPSERT" | "upsert"
+!k_min: "MIN" | "min"
+!k_max: "MAX" | "max"
+!k_all: "ALL" | "all"
+!k_any: "ANY" | "any"
+!k_union: "UNION" | "union"
+!k_intersect: "INTERSECT" | "intersect"
+!k_except: "EXCEPT" | "except"
+!k_if: "IF" | "if"
+!k_default: "DEFAULT" | "default"
+!k_check: CHECK
+!k_group: "GROUP" | "group"
+!k_having: "HAVING" | "having"
+!k_sum: "SUM" | "sum"
+!k_avg: "AVG" | "avg"
+!k_total: "TOTAL" | "total"
+!k_count: "COUNT" | "count"
+!k_recursive: "RECURSIVE" | "recursive"
+!k_in: "IN" | "in"
+!k_concat: "CONCAT" | "concat"
+!k_primary: PRIMARY
+!k_key: KEY
+!k_unique: UNIQUE
+!k_foreign: FOREIGN
+!k_references: "REFERENCES" | "references"
+!k_abort: "ABORT" | "abort"
+!k_rollback: "ROLLBACK" | "rollback"
+!k_fail: "FAIL" | "fail"
+!k_replace: "REPLACE" | "replace"
+!k_ignore: "IGNORE" | "ignore"
+!k_conflict: "CONFLICT" | "conflict"
+!k_match: "MATCH" | "match"
+!k_restrict: "RESTRICT" | "restrict"
+!k_no: "NO" | "no"
+!k_action: "ACTION" | "action"
+!k_cascade: "CASCADE" | "cascade"
+!k_deferred: "DEFERRED" | "deferred"
+!k_deferrable: "DEFERRABLE" | "deferrable"
+!k_initially: "INITIALLY" | "initially"
+!k_immediate: "IMMEDIATE" | "immediate"
+!k_constraint: "CONSTRAINT" | "constraint"
+!k_collate: "COLLATE" | "collate"
+!k_notnull: "NOT NULL" | "not null"
+!k_between: "BETWEEN" | "between"
+!k_notin: NOTIN
+
+PLUS: "+"
+MINUS: "-"
+STAR: "*"
+SLASH: "/"
+EQUAL: "="
+GREATER: ">"
+LESS: "<"
+RSHIFT: ">>"
+LSHIFT: "<<"
+NEQ: "!="
+LEQ: "<="
+GEQ: ">="
+DOUBLECOL: "::"
+DOT: "."
+
+LPAREN: "("
+RPAREN: ")"
+
+NULLIF.3: /(NULLIF)|(nullif)/
+
+FOREIGN.3: /(FOREIGN)|(foreign)/
+
+CHECK.3: /(CHECK)|(check)/
+
+PRIMARY.3: /(PRIMARY)|(primary)/
+
+UNIQUE.3: /(UNIQUE)|(unique)/
+
+CONSTRAINT.3: /(CONSTRAINT)|(constraint)/
+
+KEY.3: /(KEY)|(key)/
+
+NOTIN.3: /(NOT IN)|(not in)/
+
+NAME.2: /[a-zA-Z_]/ /[a-zA-Z0-9_]*/ | /"([^"]|"")*"/
+
+VALUE.2: /'([^']|'')*'/
+       | /(\+|-)?[0-9]+(\.[0-9]*)?(E\-?[0-9]+)?/
+       | "NULL"
+       | "null"
+
+POS_INT: /[0-9]+/
+
+_SEMI: ";"
+COMMA: ","
+
+%import common.WS
+%ignore WS

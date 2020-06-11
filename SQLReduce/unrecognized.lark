@@ -1,0 +1,16 @@
+!unexpected_stmt: (UNKNOWN | STRING | NUM | paren_expr | list_expr | ",")+
+
+!paren_expr: "(" (UNKNOWN | STRING | NUM | paren_expr | list_expr)* ")"
+
+list_expr.2: "(" list_item ("," list_item)+ ")"
+
+list_item: (UNKNOWN | STRING | NUM | paren_expr | list_expr)+
+
+UNKNOWN: /[^'()0-9,\s][^'(),\s]*/
+
+STRING: /'([^']|(''))*'/
+
+NUM.2: /(\+|-)?[0-9]+(\.[0-9]*)?(E\-?[0-9]+)?/
+
+%import common.WS
+%ignore WS

@@ -1,0 +1,2 @@
+lark-parser==0.8.2
+duckdb==0.1.6
