@@ -4,6 +4,20 @@ A Reduction Tool for SQL
 
 Author: Jonas Müntener
 
+## Purpose
+
+SQL-Reduce can reduce the length of an SQL query while maintaining some property of the query.
+For instance, one might wish to reduce a long, bug-triggering query to a smaller query that triggers the same bug, which makes it easier to identify and fix the bug.
+
+Suppose a hypothetical database management system crashes if the value `1` is returned by a `SELECT` statement.
+The original query which led to the crash might look like this:
+
+    CREATE TABLE t0 (c0 INT, c1 INT);
+    INSERT INTO t0 VALUES (2, 3);
+    SELECT 1, c0, c1 FROM t0;
+
+SQL-Reduce would *reduce* this query to `SELECT 1;` which triggers the same (hypothetical) bug.
+
 ## Installation
 
 (SQL-Reduce was developed with python 3.8.2. Other versions might work, but were not tested.)
@@ -12,10 +26,17 @@ Author: Jonas Müntener
 
 2. Install dependencies with `pip install -r requirements.txt`.
 Currently, [lark](https://github.com/lark-parser/lark) and [duckdb](https://www.duckdb.org/) are the only dependencies.
-Due to an error with duckdb's dependencies, you might first have to install numpy manually with `pip install numpy`.
 
-3. If you wish to run `sql-reduce.py` from any directory, install the `SQLReduce` module with
+3. (optional) If you wish to run `sql-reduce.py` from any directory, install the `SQLReduce` module with
 `pip install .`
+
+## How does it work?
+
+SQL-Reduce applies *reduction passes* which remove a part of the input query, generating a *reduction candidate*.
+It then runs a user-supplied script to check if the reduction candidate has the desired property (e.g. if it crashes the database when executed).
+If this is the case, the reduction candidate will be accepted and the entire process will start over.
+Otherwise, the reduction candidate will be discarded and a different reduction pass will be applied.
+Once all reduction passes have been exhaustively applied, SQL-Reduce outputs the reduced query and terminates.
 
 ## Usage
 - Example:
